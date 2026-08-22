@@ -1,7 +1,7 @@
 # Phase 3 Handoff: Stateful authorization and action-chain analysis
 
 Owner: @ayushman2006-bit · Reviewer: @Anwesh09Git · Integration reviewer: @rajeet-04
-Branch: `ayushman/phase3` (based on `ayushman/phase2` at Phase 2 deterministic policy)
+Branch: `ayushman/phase3-stateful-state` (based on `ayushman/phase2` at Phase 2 deterministic policy; the remote name `ayushman/phase3` was already occupied by merged Phase 6 gateway work, so delivery uses this branch instead)
 
 ## What shipped
 
