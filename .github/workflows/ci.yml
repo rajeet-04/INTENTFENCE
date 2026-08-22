@@ -31,11 +31,11 @@ jobs:
       - name: Upgrade pip
         run: python -m pip install --upgrade pip
       - name: Install backend packages
-        run: python -m pip install -e ./packages/contracts -e "./packages/dataflow[dev]" -e "./apps/api[dev]"
+        run: python -m pip install -e ./packages/contracts -e "./packages/dataflow[dev]" -e "./apps/api[dev]" -e "./packages/analytics[dev]"
       - name: Lint backend
-        run: python -m ruff check packages/contracts packages/dataflow apps/api
+        run: python -m ruff check packages/contracts packages/dataflow apps/api packages/analytics
       - name: Test backend
-        run: python -m pytest packages/contracts/tests packages/dataflow/tests apps/api/tests -q
+        run: python -m pytest packages/contracts/tests packages/dataflow/tests apps/api/tests packages/analytics/tests -q
       - name: Verify configured SQLite database
         run: |
           python - <<'PY'

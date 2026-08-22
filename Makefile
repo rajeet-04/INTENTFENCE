@@ -1,16 +1,16 @@
 .PHONY: setup-backend test-backend lint-backend format-backend setup-frontend test-frontend dev-api dev-dashboard verify
 
 setup-backend:
-	python -m pip install -e ./packages/contracts -e ./packages/dataflow -e "./apps/api[dev]"
+	python -m pip install -e ./packages/contracts -e ./packages/dataflow -e "./apps/api[dev]" -e "./packages/analytics[dev]"
 
 test-backend:
-	python -m pytest packages/contracts/tests packages/dataflow/tests apps/api/tests -q
+	python -m pytest packages/contracts/tests packages/dataflow/tests apps/api/tests packages/analytics/tests -q
 
 lint-backend:
-	python -m ruff check packages/contracts packages/dataflow apps/api
+	python -m ruff check packages/contracts packages/dataflow apps/api packages/analytics
 
 format-backend:
-	python -m ruff format packages/contracts packages/dataflow apps/api
+	python -m ruff format packages/contracts packages/dataflow apps/api packages/analytics
 
 setup-frontend:
 	npm --prefix apps/dashboard install
