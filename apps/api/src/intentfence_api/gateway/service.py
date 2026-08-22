@@ -17,9 +17,11 @@ from intentfence_contracts import (
 
 from .adapters import PolicyAdapter, SemanticAdapter, StateDataFlowAdapter
 from .baseline import classify_destination
+from .data_registry import TrustedDataRegistry
 from .deterministic import Phase2PolicyAdapter, Phase3StatePhase4DataFlowAdapter
 from .models import ComponentDecision, GatewayExecution, GatewayMode, SecurityEvent
 from .precedence import compose_decision
+from .state import GatewayStateStore
 from .tools import NormalizedToolRequest, ToolHandler
 
 _SENSITIVITY_RANK = {
@@ -37,10 +39,96 @@ class IntentFenceGateway:
         policy_adapter: PolicyAdapter | None = None,
         state_dataflow_adapter: StateDataFlowAdapter | None = None,
         semantic_adapter: SemanticAdapter | None = None,
+        state_store: GatewayStateStore | None = None,
+        data_registry: TrustedDataRegistry | None = None,
     ) -> None:
         self.policy_adapter = policy_adapter or Phase2PolicyAdapter()
         self.state_dataflow_adapter = state_dataflow_adapter or Phase3StatePhase4DataFlowAdapter()
         self.semantic_adapter = semantic_adapter
+        self.state_store = state_store or GatewayStateStore()
+        self.data_registry = data_registry or TrustedDataRegistry()
+
+    def register_data_label(self, label: DataLabel) -> DataLabel:
+        return self.data_registry.register(label)
+
+    def reset_runtime_state(self) -> None:
+        self.state_store.reset()
+        self.data_registry.reset()
+
+    def intercept_authoritative(
+        self,
+        normalized: NormalizedToolRequest,
+        intent_contract: IntentContract,
+        *,
+        handler: ToolHandler,
+        scenario_id: str | None = None,
+        workflow_completed: bool = False,
+    ) -> GatewayExecution:
+        """Protect a tool call using only gateway-owned security facts."""
+        return self._intercept_with_runtime(
+            normalized,
+            intent_contract,
+            handler=handler,
+            mode=GatewayMode.ENABLED,
+            scenario_id=scenario_id,
+            workflow_completed=workflow_completed,
+        )
+
+    def intercept_unprotected_demo(
+        self,
+        normalized: NormalizedToolRequest,
+        intent_contract: IntentContract,
+        *,
+        handler: ToolHandler,
+        scenario_id: str,
+        workflow_completed: bool = False,
+    ) -> GatewayExecution:
+        """Execute the controlled comparison leg without authorization.
+
+        This method is intentionally not used by the public interception API.
+        """
+        return self._intercept_with_runtime(
+            normalized,
+            intent_contract,
+            handler=handler,
+            mode=GatewayMode.DISABLED,
+            scenario_id=scenario_id,
+            workflow_completed=workflow_completed,
+        )
+
+    def _intercept_with_runtime(
+        self,
+        normalized: NormalizedToolRequest,
+        intent_contract: IntentContract,
+        *,
+        handler: ToolHandler,
+        mode: GatewayMode,
+        scenario_id: str | None,
+        workflow_completed: bool,
+    ) -> GatewayExecution:
+        context = self.state_store.get_or_create(intent_contract)
+        labels = self.data_registry.resolve_known(normalized.request.data_refs)
+        execution = self.intercept(
+            normalized,
+            intent_contract,
+            context,
+            handler=handler,
+            data_labels=labels,
+            mode=mode,
+            scenario_id=scenario_id,
+            workflow_completed=workflow_completed,
+        )
+        self.state_store.record(
+            context,
+            request=normalized.request,
+            resource_class=normalized.resource_class,
+            destination_class=execution.event.destination_class,
+            decision=execution.decision,
+            risk_score=execution.event.risk_score,
+            executed=execution.executed,
+            result=execution.result,
+        )
+        return execution
 
     def intercept(
         self,
@@ -54,10 +142,28 @@ class IntentFenceGateway:
         scenario_id: str | None = None,
         workflow_completed: bool = False,
     ) -> GatewayExecution:
+        """Internal evaluator used by the authoritative and controlled-demo paths."""
         started = perf_counter()
         request = normalized.request
         destination_class = classify_destination(normalized.destination, intent_contract)
         sensitivity = self._highest_sensitivity(data_labels)
+
+        authority = self._authority_decision(normalized, intent_contract)
+        if authority is not None:
+            return self._execution(
+                normalized,
+                intent_contract,
+                authority,
+                mode=mode,
+                scenario_id=scenario_id,
+                sensitivity=sensitivity,
+                destination_class=destination_class,
+                accumulated_risk=security_context.accumulated_risk,
+                executed=False,
+                result=None,
+                started=started,
+                workflow_completed=False,
+            )
 
         if mode is GatewayMode.DISABLED:
             result = handler(request.arguments)
@@ -146,6 +252,44 @@ class IntentFenceGateway:
             started=started,
             workflow_completed=workflow_completed and executed,
         )
+
+    @staticmethod
+    def _authority_decision(
+        normalized: NormalizedToolRequest,
+        intent_contract: IntentContract,
+    ) -> ComponentDecision | None:
+        request = normalized.request
+        if request.session_id != intent_contract.session_id:
+            return ComponentDecision(
+                decision=DecisionType.BLOCK,
+                reason="Request session does not match the active Intent Contract.",
+                source=DecisionSource.POLICY,
+                risk_score=1.0,
+                matched_rules=["SESSION_ID_MISMATCH"],
+                hard_block=True,
+            )
+        if request.intent_id != intent_contract.intent_id:
+            return ComponentDecision(
+                decision=DecisionType.BLOCK,
+                reason="Request intent does not match the active Intent Contract.",
+                source=DecisionSource.POLICY,
+                risk_score=1.0,
+                matched_rules=["INTENT_ID_MISMATCH"],
+                hard_block=True,
+            )
+        if (
+            intent_contract.expires_at is not None
+            and intent_contract.expires_at <= datetime.now(UTC)
+        ):
+            return ComponentDecision(
+                decision=DecisionType.BLOCK,
+                reason="The Intent Contract has expired and cannot authorize new actions.",
+                source=DecisionSource.POLICY,
+                risk_score=1.0,
+                matched_rules=["INTENT_CONTRACT_EXPIRED"],
+                hard_block=True,
+            )
+        return None
 
     @staticmethod
     def _highest_sensitivity(data_labels: Sequence[DataLabel]) -> Sensitivity | None:
