@@ -74,8 +74,8 @@ class ProtectedDataTypeRewriteError(PropagationError):
         self.source_types = sorted(source_types)
         self.requested = requested
         super().__init__(
-            "Credential data classification cannot be rewritten by a controlled transformation: "
-            f"source={','.join(self.source_types)} requested={requested}"
+            "Conflicting credential classifications cannot be collapsed by a controlled "
+            f"transformation: source={','.join(self.source_types)} requested={requested}"
         )
 
 
@@ -122,7 +122,7 @@ def _intersect_allowed_destinations(
         intersection &= other
     if not intersection:
         raise ConflictingDestinationConstraintsError()
-    return [dest for dest in sorted(intersection)]
+    return sorted(intersection)
 
 
 def _reject_metadata_overrides(
@@ -164,10 +164,9 @@ def _resolve_derived_data_type(sources: Sequence[DataLabel], requested: str) -> 
     }
     if not credential_types:
         return requested
-    requested_type = requested.strip().upper()
-    if len(credential_types) != 1 or requested_type not in credential_types:
-        raise ProtectedDataTypeRewriteError(credential_types, requested_type)
-    return requested_type
+    if len(credential_types) > 1:
+        raise ProtectedDataTypeRewriteError(credential_types, requested.strip().upper())
+    return next(iter(credential_types))
 
 
 def propagate(
