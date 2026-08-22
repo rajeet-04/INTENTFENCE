@@ -22,7 +22,7 @@ def contract() -> IntentContract:
         intent_id="data-intent",
         session_id="data-session",
         objective="Transmit only approved data to approved destinations.",
-        allowed_tools=["http_request", "write_file"],
+        allowed_tools=["http_request", "send_message", "write_file"],
         allowed_resources=["approved_data"],
         allowed_destinations=["approved.example", "internal-auth.example"],
         risk_tolerance=RiskTolerance.MEDIUM,
@@ -62,6 +62,20 @@ def request(destination: str, *, data_ref: str = "critical-ref"):
         intent_id="data-intent",
         tool="http_request",
         arguments={"url": f"https://{destination}", "body_ref": data_ref},
+        data_refs=[data_ref],
+        source_context=SourceContext.SYSTEM,
+        timestamp=NOW,
+    ).request
+
+
+def message_request(destination: str, *, data_ref: str = "critical-ref"):
+    return normalize_tool_request(
+        request_id=f"message-{destination}",
+        session_id="data-session",
+        agent_id="agent",
+        intent_id="data-intent",
+        tool="send_message",
+        arguments={"recipient": destination, "content_ref": data_ref},
         data_refs=[data_ref],
         source_context=SourceContext.SYSTEM,
         timestamp=NOW,
@@ -126,3 +140,17 @@ def test_critical_label_allows_its_explicit_destination() -> None:
     )
     assert result.decision is DecisionType.ALLOW
     assert result.matched_rules == ["DATAFLOW_LABELS_ALLOW"]
+
+
+def test_phase4_credential_rule_blocks_messaging_even_to_trusted_allowed_destination() -> None:
+    result = DataFlowSecurityAdapter().evaluate(
+        message_request("internal-auth.example"),
+        contract(),
+        context(),
+        resource_class=ResourceClass.PUBLIC_WEB,
+        destination="internal-auth.example",
+        data_labels=[critical_label()],
+    )
+    assert result.decision is DecisionType.BLOCK
+    assert result.hard_block is True
+    assert "CREDENTIAL_DATA_IN_MESSAGING" in result.matched_rules
