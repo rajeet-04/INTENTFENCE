@@ -16,13 +16,14 @@ _RESOURCE_KEYS = (
 )
 
 _DESTINATION_KEYS = (
-    "destination",
-    "dest",
     "url",
     "uri",
-    "host",
     "endpoint",
+    "destination",
+    "dest",
+    "host",
     "to",
+    "recipient",
     "channel",
 )
 
@@ -41,3 +42,11 @@ def extract_resource_argument(arguments: dict[str, Any]) -> str | None:
 
 def extract_destination_argument(arguments: dict[str, Any]) -> str | None:
     return _first_string(arguments, _DESTINATION_KEYS)
+
+
+def extract_destination_candidates(arguments: dict[str, Any]) -> tuple[str, ...]:
+    return tuple(
+        value.strip()
+        for key in _DESTINATION_KEYS
+        if isinstance((value := arguments.get(key)), str) and value.strip()
+    )

@@ -3,9 +3,10 @@ from abc import ABC, abstractmethod
 from intentfence_classification import (
     AuthorityLevel,
     classify_authority,
-    find_authority_claim,
+    find_authority_claim_in_arguments,
     is_path_under_root,
     normalize_destination,
+    normalize_path,
 )
 from intentfence_contracts import (
     DecisionType,
@@ -19,6 +20,7 @@ from .models import EvaluationContext, RuleOutcome
 
 FORBIDDEN_TOOL_RULE_ID = "FORBIDDEN_TOOL"
 EXTERNAL_AUTHORITY_OVERRIDE_RULE_ID = "EXTERNAL_AUTHORITY_OVERRIDE"
+AMBIGUOUS_DESTINATION_RULE_ID = "AMBIGUOUS_DESTINATION"
 FORBIDDEN_RESOURCE_RULE_ID = "FORBIDDEN_RESOURCE"
 SECRET_ACCESS_UNRELATED_TO_INTENT_RULE_ID = "SECRET_ACCESS_UNRELATED_TO_INTENT"
 CRITICAL_DATA_TO_UNTRUSTED_DESTINATION_RULE_ID = "CRITICAL_DATA_TO_UNTRUSTED_DESTINATION"
@@ -36,9 +38,8 @@ _FORBIDDEN_CLASS_TOKENS: dict[str, frozenset[ResourceClass]] = {
 }
 
 _WRITER_TOOL_PREFIXES = ("write", "create", "delete", "remove", "move")
-
+_NETWORK_TOOLS = frozenset({"browse_web", "http_request", "send_message"})
 _TRANSFER_TOOLS = frozenset({"http_request", "send_message"})
-
 _AUTHORITY_PURPOSES = frozenset({"authentication", "authorization", "auth"})
 
 
@@ -59,7 +60,20 @@ def _outcome(
 
 
 def _normalized_set(entries: list[str]) -> set[str]:
-    return {entry.strip().replace("\\", "/").lower() for entry in entries}
+    return {normalize_path(entry) for entry in entries}
+
+
+def _resource_matches_allowed(resource_ref: str, allowed_resources: list[str]) -> bool:
+    normalized_ref = normalize_path(resource_ref)
+    for entry in allowed_resources:
+        scoped = entry.rstrip().endswith("/")
+        normalized_entry = normalize_path(entry).rstrip("/")
+        if scoped:
+            if is_path_under_root(normalized_ref, normalized_entry):
+                return True
+        elif normalized_ref == normalized_entry:
+            return True
+    return False
 
 
 class PolicyRule(ABC):
@@ -81,7 +95,7 @@ class ExternalContentAuthorityRule(PolicyRule):
         source_context = context.input.request.source_context
         if classify_authority(source_context) == AuthorityLevel.FULL:
             return None
-        claim = find_authority_claim(context.argument_text)
+        claim = find_authority_claim_in_arguments(context.input.request.arguments)
         if claim is None:
             return None
         return _outcome(
@@ -92,6 +106,24 @@ class ExternalContentAuthorityRule(PolicyRule):
                 f"Non-user content attempted to modify authorization "
                 f"(matched authority claim '{claim}'). External content cannot grant authority."
             ),
+            1.0,
+        )
+
+
+class AmbiguousDestinationRule(PolicyRule):
+    rule_id = AMBIGUOUS_DESTINATION_RULE_ID
+    rule_strength = RuleStrength.HARD_BLOCK
+    description = "Conflicting destination fields cannot select different network targets."
+
+    def evaluate(self, context: EvaluationContext) -> RuleOutcome | None:
+        if context.input.request.tool not in _NETWORK_TOOLS or not context.destination_ambiguous:
+            return None
+        destinations = ", ".join(context.destination_hosts)
+        return _outcome(
+            self.rule_id,
+            self.rule_strength,
+            DecisionType.BLOCK,
+            f"Conflicting destination fields resolve to multiple hosts: {destinations}.",
             1.0,
         )
 
@@ -124,12 +156,12 @@ class ForbiddenResourceRule(PolicyRule):
 
     def evaluate(self, context: EvaluationContext) -> RuleOutcome | None:
         contract = context.input.contract
-        forbidden = [entry.lower() for entry in contract.forbidden_resources]
+        forbidden = [normalize_path(entry) for entry in contract.forbidden_resources]
         if not forbidden:
             return None
         resource_ref = context.resource_ref
         if resource_ref is not None:
-            normalized_ref = resource_ref.strip().replace("\\", "/").lower()
+            normalized_ref = normalize_path(resource_ref)
             base_name = normalized_ref.rsplit("/", 1)[-1]
             for entry in forbidden:
                 if normalized_ref == entry or base_name == entry:
@@ -166,12 +198,10 @@ class SecretAccessUnrelatedToIntentRule(PolicyRule):
         if context.resource_class not in {ResourceClass.SECRET, ResourceClass.CREDENTIAL}:
             return None
         resource_ref = context.resource_ref
-        allowed = _normalized_set(context.input.contract.allowed_resources)
-        if resource_ref is not None:
-            normalized_ref = resource_ref.strip().replace("\\", "/").lower()
-            base_name = normalized_ref.rsplit("/", 1)[-1]
-            if normalized_ref in allowed or base_name in allowed:
-                return None
+        if resource_ref is not None and _resource_matches_allowed(
+            resource_ref, context.input.contract.allowed_resources
+        ):
+            return None
         return _outcome(
             self.rule_id,
             self.rule_strength,
@@ -249,14 +279,10 @@ class WriteOutsideWorkspaceRule(PolicyRule):
             return None
         resource_ref = context.resource_ref
         if resource_ref is None:
-            return self._approval(
-                f"Write action '{tool}' has no determinable target path."
-            )
-        allowed = _normalized_set(context.input.contract.allowed_resources)
-        normalized_ref = resource_ref.strip().replace("\\", "/").lower()
-        base_name = normalized_ref.rsplit("/", 1)[-1]
-        if normalized_ref in allowed or base_name in allowed:
+            return self._approval(f"Write action '{tool}' has no determinable target path.")
+        if _resource_matches_allowed(resource_ref, context.input.contract.allowed_resources):
             return None
+        normalized_ref = normalize_path(resource_ref)
         if any(
             is_path_under_root(normalized_ref, root) for root in context.config.workspace_roots
         ):
@@ -336,6 +362,7 @@ class PurposeBoundDataRule(PolicyRule):
 
 DEFAULT_RULES: tuple[PolicyRule, ...] = (
     ExternalContentAuthorityRule(),
+    AmbiguousDestinationRule(),
     ForbiddenToolRule(),
     ForbiddenResourceRule(),
     SecretAccessUnrelatedToIntentRule(),
