@@ -13,3 +13,5 @@ node_modules/
 .DS_Store
 .vscode/
 .idea/
+# Next.js generated files
+next-env.d.ts
