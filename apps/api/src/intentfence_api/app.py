@@ -4,15 +4,15 @@ from intentfence_contracts import Decision
 
 from .config import get_settings
 from .gateway.demo import HotelAttackComparison, run_hotel_attack_demo
+from .gateway.factory import build_application_gateway
 from .gateway.models import GatewayExecution
 from .gateway.runtime import SandboxProtectedToolRuntime
-from .gateway.service import IntentFenceGateway
 from .gateway.tools import normalize_tool_request
 from .schemas import AuthorizeRequest, GatewayInterceptRequest
 from .services.foundation_authorizer import authorize_foundation
 
 settings = get_settings()
-gateway = IntentFenceGateway()
+gateway = build_application_gateway(settings)
 tool_runtime = SandboxProtectedToolRuntime()
 
 app = FastAPI(
@@ -33,7 +33,7 @@ app.add_middleware(
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "service": "intentfence-api"}
+    return {"status": "ok", "service":"intentfence-api"}
 
 
 @app.post("/authorize", response_model=Decision)
