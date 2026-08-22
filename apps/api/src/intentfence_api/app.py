@@ -3,16 +3,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from intentfence_contracts import Decision
 
 from .config import get_settings
+from .gateway.adapters import Phase5SemanticAdapter
 from .gateway.demo import HotelAttackComparison, run_hotel_attack_demo
 from .gateway.models import GatewayExecution
 from .gateway.runtime import SandboxProtectedToolRuntime
 from .gateway.service import IntentFenceGateway
 from .gateway.tools import normalize_tool_request
 from .schemas import AuthorizeRequest, GatewayInterceptRequest
+from .semantic import build_default_semantic_judge
 from .services.policy_authorizer import authorize_request
 
 settings = get_settings()
-gateway = IntentFenceGateway()
+gateway = IntentFenceGateway(
+    semantic_adapter=Phase5SemanticAdapter(build_default_semantic_judge(settings))
+)
 tool_runtime = SandboxProtectedToolRuntime()
 
 app = FastAPI(
