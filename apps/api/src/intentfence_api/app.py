@@ -4,12 +4,13 @@ from intentfence_contracts import Decision
 
 from .config import get_settings
 from .gateway.demo import HotelAttackComparison, run_hotel_attack_demo
+from .gateway.mcp import run_mcp_tool_call
 from .gateway.models import GatewayExecution
 from .gateway.phase2 import Phase2PolicyAdapter
 from .gateway.runtime import SandboxProtectedToolRuntime
 from .gateway.service import IntentFenceGateway
 from .gateway.tools import normalize_tool_request
-from .schemas import AuthorizeRequest, GatewayInterceptRequest
+from .schemas import AuthorizeRequest, GatewayInterceptRequest, McpInterceptRequest
 from .services.foundation_authorizer import authorize_foundation
 
 settings = get_settings()
@@ -66,6 +67,19 @@ def gateway_intercept(request: GatewayInterceptRequest) -> GatewayExecution:
         request.intent_contract,
         request.security_context,
         handler=handler,
+        data_labels=request.data_labels,
+        mode=request.mode,
+        scenario_id=request.scenario_id,
+    )
+
+
+@app.post("/mcp/tool-call", response_model=GatewayExecution)
+def mcp_tool_call(request: McpInterceptRequest) -> GatewayExecution:
+    return run_mcp_tool_call(
+        request.call,
+        request.intent_contract,
+        request.security_context,
+        gateway=gateway,
         data_labels=request.data_labels,
         mode=request.mode,
         scenario_id=request.scenario_id,

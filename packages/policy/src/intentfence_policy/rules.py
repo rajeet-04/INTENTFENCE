@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from intentfence_classification import (
     AuthorityLevel,
     classify_authority,
-    find_authority_claim,
+    find_argument_authority_claim,
     is_path_under_root,
     normalize_destination,
     normalize_path,
@@ -102,7 +102,7 @@ class ExternalContentAuthorityRule(PolicyRule):
         source_context = context.input.request.source_context
         if classify_authority(source_context) == AuthorityLevel.FULL:
             return None
-        claim = find_authority_claim(context.argument_text)
+        claim = find_argument_authority_claim(context.input.request.arguments)
         if claim is None:
             return None
         return _outcome(

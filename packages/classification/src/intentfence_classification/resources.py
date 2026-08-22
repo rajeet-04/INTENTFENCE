@@ -1,8 +1,13 @@
-from urllib.parse import urlparse
+import unicodedata
+from urllib.parse import unquote, urlparse
 
 from intentfence_contracts import ResourceClass
 
 from .config import ClassifierConfig
+
+_ZERO_WIDTH_TRANSLATION = {
+    ord(char): None for char in ("\u200b", "\u200c", "\u200d", "\u2060", "\ufeff")
+}
 
 _CREDENTIAL_EXTENSIONS = (
     ".pem",
@@ -82,7 +87,15 @@ _DOCUMENT_EXTENSIONS = (
 
 
 def normalize_path(value: str) -> str:
-    lowered = value.strip().replace("\\", "/").lower()
+    """Canonicalize a filesystem path for classification and containment checks.
+
+    Red teams disguise secret paths with percent-escapes, unicode look-alikes,
+    zero-width characters, and traversal segments. All of those folds happen
+    here, deterministically, before any marker or containment decision.
+    """
+    decoded = unquote(value.strip().replace("\\", "/"))
+    folded = unicodedata.normalize("NFKD", decoded).translate(_ZERO_WIDTH_TRANSLATION)
+    lowered = folded.lower()
     absolute = lowered.startswith("/")
     segments = [segment for segment in lowered.split("/") if segment not in ("", ".")]
     collapsed: list[str] = []

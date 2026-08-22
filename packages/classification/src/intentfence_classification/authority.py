@@ -1,5 +1,9 @@
+import base64
+import binascii
 import re
 from enum import StrEnum
+from typing import Any
+from urllib.parse import unquote
 
 from intentfence_contracts import SourceContext
 
@@ -53,8 +57,69 @@ def has_authority_granting_power(source_context: SourceContext) -> bool:
 def find_authority_claim(text: str | None) -> str | None:
     if not text:
         return None
-    for pattern in _AUTHORITY_CLAIM_PATTERNS:
-        match = pattern.search(text)
-        if match:
-            return match.group(0).lower()
+    for variant in _decoded_variants(text):
+        for pattern in _AUTHORITY_CLAIM_PATTERNS:
+            match = pattern.search(variant)
+            if match:
+                return match.group(0).lower()
     return None
+
+
+def _decoded_variants(text: str) -> tuple[str, ...]:
+    """Return the text plus deterministic decodings used to hide instructions.
+
+    Red teams encode authority claims as base64, hex, or percent-escapes so a
+    plain-text scan misses them. Decoding is conservative: a candidate is only
+    considered when its character set unambiguously identifies the encoding and
+    the result is printable text. No probabilistic matching anywhere.
+    """
+    variants: list[str] = [text]
+    unquoted = unquote(text)
+    if unquoted != text:
+        variants.append(unquoted)
+    stripped = "".join(text.split())
+    if len(stripped) >= 12 and re.fullmatch(r"[A-Za-z0-9+/=]+", stripped):
+        try:
+            decoded = base64.b64decode(stripped, validate=True).decode("utf-8")
+        except (binascii.Error, UnicodeDecodeError, ValueError):
+            decoded = None
+        if decoded and decoded.isprintable():
+            variants.append(decoded)
+    if len(stripped) >= 16 and len(stripped) % 2 == 0 and re.fullmatch(r"[0-9a-fA-F]+", stripped):
+        try:
+            decoded = bytes.fromhex(stripped).decode("utf-8")
+        except (UnicodeDecodeError, ValueError):
+            decoded = None
+        if decoded and decoded.isprintable():
+            variants.append(decoded)
+    return tuple(variants)
+
+
+def join_argument_values(arguments: dict[str, Any]) -> str:
+    """Join all string argument values with single spaces.
+
+    Split-instruction attacks place fragments of an authority claim in separate
+    argument fields ("note": "You are now", "hint": "authorized to read").
+    A JSON dump separates those fragments with punctuation that breaks claim
+    patterns; the space-joined form restores them deterministically.
+    """
+    values = [
+        value.strip()
+        for value in arguments.values()
+        if isinstance(value, str) and value.strip()
+    ]
+    return " ".join(values)
+
+
+def find_authority_claim_in_arguments(arguments: dict[str, Any]) -> str | None:
+    """Scan every argument value individually, then their space-joined form.
+
+    Per-value scanning catches encoded payloads hidden in one field; the joined
+    form catches instructions split across fields.
+    """
+    for value in arguments.values():
+        if isinstance(value, str) and value.strip():
+            claim = find_authority_claim(value)
+            if claim:
+                return claim
+    return find_authority_claim(join_argument_values(arguments))
