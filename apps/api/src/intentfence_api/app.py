@@ -63,10 +63,7 @@ def gateway_intercept(request: GatewayInterceptRequest) -> GatewayExecution:
     return gateway.intercept(
         normalized,
         request.intent_contract,
-        request.security_context,
         handler=handler,
-        data_labels=request.data_labels,
-        mode=request.mode,
         scenario_id=request.scenario_id,
     )
 
