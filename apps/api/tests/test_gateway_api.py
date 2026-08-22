@@ -55,22 +55,6 @@ def gateway_payload() -> dict:
             "contract_version": 1,
             "previous_intent_id": None,
         },
-        "security_context": {
-            "session_id": "hotel-demo",
-            "intent_id": "intent-hotel-v1",
-            "recent_tools": [],
-            "active_data_refs": [],
-            "sensitive_data_seen": False,
-            "secret_accessed": False,
-            "untrusted_content_seen": False,
-            "unknown_destination_seen": False,
-            "recent_action_chain": [],
-            "accumulated_risk": 0.0,
-            "intent_drift_score": 0.0,
-            "last_updated_at": now.isoformat(),
-        },
-        "data_labels": [],
-        "mode": "ENABLED",
         "scenario_id": "api-safe-control",
     }
 

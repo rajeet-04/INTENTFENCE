@@ -8,7 +8,6 @@ from intentfence_contracts import (
     IntentContract,
     ResourceClass,
     RiskTolerance,
-    SecurityContext,
     Sensitivity,
     SourceContext,
 )
@@ -119,23 +118,6 @@ def _intent(now: datetime) -> IntentContract:
     )
 
 
-def _security_context(now: datetime) -> SecurityContext:
-    return SecurityContext(
-        session_id="hotel-demo",
-        intent_id="intent-hotel-v1",
-        recent_tools=[],
-        active_data_refs=[],
-        sensitive_data_seen=False,
-        secret_accessed=False,
-        untrusted_content_seen=False,
-        unknown_destination_seen=False,
-        recent_action_chain=[],
-        accumulated_risk=0.0,
-        intent_drift_score=0.0,
-        last_updated_at=now,
-    )
-
-
 def _critical_secret(now: datetime) -> DataLabel:
     return DataLabel(
         data_id="data-secret",
@@ -187,43 +169,12 @@ def _handler(step: DemoStep, state: dict[str, bool]):
     return execute
 
 
-def _update_context_after_execution(
-    context: SecurityContext,
-    step: DemoStep,
-    *,
-    executed: bool,
-    now: datetime,
-) -> SecurityContext:
-    recent_tools = [*context.recent_tools, step.tool][-5:]
-    action_chain = [*context.recent_action_chain, step.tool][-8:]
-    updates: dict[str, Any] = {
-        "recent_tools": recent_tools,
-        "recent_action_chain": action_chain,
-        "last_updated_at": now,
-    }
-    if step.name == "browse-hotel-b" and executed:
-        updates["untrusted_content_seen"] = True
-        updates["accumulated_risk"] = max(context.accumulated_risk, 0.25)
-    if step.name == "injected-secret-read" and executed:
-        updates["secret_accessed"] = True
-        updates["sensitive_data_seen"] = True
-        updates["active_data_refs"] = [*context.active_data_refs, "data-secret"]
-        updates["accumulated_risk"] = max(context.accumulated_risk, 0.75)
-    if step.name == "injected-exfiltration" and executed:
-        updates["unknown_destination_seen"] = True
-        updates["accumulated_risk"] = 1.0
-    return context.model_copy(update=updates)
-
-
 def _run(mode: GatewayMode, scenario: HotelAttackScenario) -> DemoRun:
     now = datetime.now(UTC)
     intent = _intent(now)
-    context = _security_context(now)
-    labels = {
-        "data-secret": _critical_secret(now),
-        "hotel-comparison": _public_comparison(now),
-    }
     gateway = IntentFenceGateway()
+    gateway.register_data_label(_critical_secret(now))
+    gateway.register_data_label(_public_comparison(now))
     state = {"secret_read": False, "exfiltration": False, "saved": False}
     decisions: list[DecisionType] = []
     receipts: list[str] = []
@@ -241,27 +192,26 @@ def _run(mode: GatewayMode, scenario: HotelAttackScenario) -> DemoRun:
             source_context=step.source_context,
             timestamp=now,
         )
-        step_labels = [labels[data_ref] for data_ref in step.data_refs if data_ref in labels]
-        is_final_legitimate_step = step.name == "save-cheaper-hotel"
-        execution = gateway.intercept(
-            normalized,
-            intent,
-            context,
-            handler=_handler(step, state),
-            data_labels=step_labels,
-            mode=mode,
-            scenario_id=scenario.scenario_id,
-            workflow_completed=is_final_legitimate_step,
-        )
+        final_step = step.name == "save-cheaper-hotel"
+        if mode is GatewayMode.DISABLED:
+            execution = gateway.intercept_unprotected_demo(
+                normalized,
+                intent,
+                handler=_handler(step, state),
+                scenario_id=scenario.scenario_id,
+                workflow_completed=final_step,
+            )
+        else:
+            execution = gateway.intercept_authoritative(
+                normalized,
+                intent,
+                handler=_handler(step, state),
+                scenario_id=scenario.scenario_id,
+                workflow_completed=final_step,
+            )
         decisions.append(execution.decision)
         receipts.append(execution.receipt_id)
         events.append(execution.event)
-        context = _update_context_after_execution(
-            context,
-            step,
-            executed=execution.executed,
-            now=now,
-        )
 
     return DemoRun(
         mode=mode,
