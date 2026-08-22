@@ -86,6 +86,15 @@ class BaselineSecurityAdapter:
                 hard_block=True,
             )
 
+        if resource_class is ResourceClass.SYSTEM_FILE:
+            return _decision(
+                DecisionType.BLOCK,
+                "System files are outside the delegated task resource boundary.",
+                rule="SYSTEM_FILE_ACCESS_BLOCKED",
+                risk=1.0,
+                hard_block=True,
+            )
+
         if resource_class in {ResourceClass.SECRET, ResourceClass.CREDENTIAL}:
             external_trigger = (
                 request.source_context in _EXTERNAL_SOURCES
@@ -105,6 +114,14 @@ class BaselineSecurityAdapter:
                 rule="FORBIDDEN_SECRET_RESOURCE",
                 risk=1.0,
                 hard_block=True,
+            )
+
+        if request.tool == "write_file" and resource_class is ResourceClass.USER_DOCUMENT:
+            return _decision(
+                DecisionType.REQUIRE_APPROVAL,
+                "Writing outside the controlled workspace requires explicit user approval.",
+                rule="WRITE_OUTSIDE_APPROVED_WORKSPACE",
+                risk=max(0.65, security_context.accumulated_risk),
             )
 
         destination_class = classify_destination(destination, intent_contract)
