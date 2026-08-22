@@ -5,6 +5,7 @@ from intentfence_contracts import Decision
 from .config import get_settings
 from .gateway.demo import HotelAttackComparison, run_hotel_attack_demo
 from .gateway.models import GatewayExecution
+from .gateway.phase2 import Phase2PolicyAdapter
 from .gateway.runtime import SandboxProtectedToolRuntime
 from .gateway.service import IntentFenceGateway
 from .gateway.tools import normalize_tool_request
@@ -12,7 +13,7 @@ from .schemas import AuthorizeRequest, GatewayInterceptRequest
 from .services.foundation_authorizer import authorize_foundation
 
 settings = get_settings()
-gateway = IntentFenceGateway()
+gateway = IntentFenceGateway(policy_adapter=Phase2PolicyAdapter())
 tool_runtime = SandboxProtectedToolRuntime()
 
 app = FastAPI(
