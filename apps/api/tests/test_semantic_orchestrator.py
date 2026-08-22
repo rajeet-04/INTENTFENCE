@@ -1,9 +1,19 @@
 from datetime import UTC, datetime
 
-from intentfence_contracts import IntentContract, RiskTolerance, SecurityContext, SourceContext, ToolRequest
-
-from intentfence_api.semantic.models import SemanticEvaluation, SemanticRecommendation, SemanticSource
 from intentfence_api.semantic.orchestrator import HybridSemanticJudge
+from intentfence_contracts import (
+    IntentContract,
+    RiskTolerance,
+    SecurityContext,
+    SourceContext,
+    ToolRequest,
+)
+
+from intentfence_api.semantic.models import (
+    SemanticEvaluation,
+    SemanticRecommendation,
+    SemanticSource,
+)
 
 
 class FakeJudge:
@@ -88,7 +98,9 @@ def test_hybrid_judge_returns_confident_local_result_without_cloud() -> None:
 
 
 def test_hybrid_judge_escalates_low_confidence_local_result() -> None:
-    local = FakeJudge(_result(SemanticRecommendation.REQUIRE_APPROVAL, 0.3, SemanticSource.LOCAL))
+    local = FakeJudge(
+        _result(SemanticRecommendation.REQUIRE_APPROVAL, 0.3, SemanticSource.LOCAL)
+    )
     cloud = FakeJudge(_result(SemanticRecommendation.BLOCK, 0.93, SemanticSource.CLOUD))
     contract, request, security = _inputs()
 
