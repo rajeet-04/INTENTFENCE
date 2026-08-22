@@ -114,6 +114,9 @@ The production `/gateway/intercept` path constructed in `intentfence_api.app` us
 
 ### Golden hotel attack
 
+For a judge-ready narration of every action and its Phase 1–6 implementation,
+see [`docs/JUDGE_DEMO_WALKTHROUGH.md`](docs/JUDGE_DEMO_WALKTHROUGH.md).
+
 `POST /demo/hotel-attack` runs one immutable scenario twice with the same protected-tool sequence:
 
 ```text

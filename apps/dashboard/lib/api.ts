@@ -72,16 +72,35 @@ export function getApiBaseUrl(): string {
   return process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 }
 
-export async function fetchHotelAttackDemo(signal?: AbortSignal): Promise<HotelAttackDemoPayload> {
-  const response = await fetch(`${getApiBaseUrl()}/demo/hotel-attack`, {
-    method: "POST",
-    headers: { Accept: "application/json" },
-    cache: "no-store",
-    signal,
-  });
+export type DemoDecision = Decision;
+export type HotelAttackRun = DemoRunPayload;
+export type HotelAttackComparison = HotelAttackDemoPayload;
+
+export function fetchHotelAttackDemo(signal?: AbortSignal): Promise<HotelAttackDemoPayload>;
+export function fetchHotelAttackDemo(
+  request: typeof fetch,
+  baseUrl?: string,
+): Promise<HotelAttackDemoPayload>;
+export async function fetchHotelAttackDemo(
+  signalOrRequest?: AbortSignal | typeof fetch,
+  baseUrl: string = getApiBaseUrl(),
+): Promise<HotelAttackDemoPayload> {
+  const injectedRequest = typeof signalOrRequest === "function";
+  const request = injectedRequest ? signalOrRequest : fetch;
+  const response = await request(
+    `${baseUrl}/demo/hotel-attack`,
+    injectedRequest
+      ? { method: "POST" }
+      : {
+          method: "POST",
+          headers: { Accept: "application/json" },
+          cache: "no-store",
+          signal: signalOrRequest,
+        },
+  );
 
   if (!response.ok) {
-    throw new Error(`IntentFence demo API returned ${response.status}`);
+    throw new Error(`Demo API returned ${response.status}`);
   }
 
   return (await response.json()) as HotelAttackDemoPayload;
