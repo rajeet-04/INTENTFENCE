@@ -248,7 +248,10 @@ class IntentFenceGateway:
                 matched_rules=["INTENT_ID_MISMATCH"],
                 hard_block=True,
             )
-        if intent_contract.expires_at is not None and intent_contract.expires_at <= datetime.now(UTC):
+        if (
+            intent_contract.expires_at is not None
+            and intent_contract.expires_at <= datetime.now(UTC)
+        ):
             return ComponentDecision(
                 decision=DecisionType.BLOCK,
                 reason="The Intent Contract has expired and cannot authorize new actions.",
