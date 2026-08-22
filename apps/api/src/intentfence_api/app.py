@@ -9,7 +9,7 @@ from .gateway.runtime import SandboxProtectedToolRuntime
 from .gateway.service import IntentFenceGateway
 from .gateway.tools import normalize_tool_request
 from .schemas import AuthorizeRequest, GatewayInterceptRequest
-from .services.foundation_authorizer import authorize_foundation
+from .services.policy_authorizer import authorize_request
 
 settings = get_settings()
 gateway = IntentFenceGateway()
@@ -38,7 +38,7 @@ def health() -> dict[str, str]:
 
 @app.post("/authorize", response_model=Decision)
 def authorize(request: AuthorizeRequest) -> Decision:
-    return authorize_foundation(request)
+    return authorize_request(request)
 
 
 @app.post("/gateway/intercept", response_model=GatewayExecution)
