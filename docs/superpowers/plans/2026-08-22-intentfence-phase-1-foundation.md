@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build the minimum runnable IntentFence foundation with typed security contracts, a FastAPI service, a safe placeholder authorization path, SQLite persistence primitives, a Next.js dashboard shell, and CI.
+**Goal:** Build the minimum runnable IntentFence foundation with stable security contracts, a fail-closed FastAPI authorization boundary, SQLite persistence primitives, a Next.js dashboard shell, and CI.
 
-**Architecture:** Phase 1 creates stable contracts before policy, stateful sequence logic, data-flow propagation, or semantic inference are implemented. The API accepts `IntentContract`, `ToolRequest`, and `SecurityContext`, validates contract identity and expiry, and fails closed with a typed `Decision`; later phases replace the placeholder authorization service behind the same interface.
+**Architecture:** Phase 1 fixes the interfaces that all later security phases depend on. The API validates request, session, intent identity, and temporal contract validity, but deliberately does not return `ALLOW` until Phase 2 activates real deterministic policy. Shared contract models live in a separate Python package so policy, state, gateway, benchmark, and analytics code can reuse exactly the same types.
 
 **Tech Stack:** Python 3.12+, FastAPI, Pydantic v2, pydantic-settings, SQLAlchemy 2, SQLite, pytest, Ruff, Next.js 15, React 19, TypeScript 5, ESLint 9, npm, GitHub Actions.
 
@@ -12,16 +12,17 @@
 
 ## Global Constraints
 
-- Protected tools never execute directly; all future execution must traverse the IntentFence gateway.
-- External content may influence reasoning but cannot grant authorization.
-- Deterministic hard blocks cannot be overridden by semantic models.
+- Protected tools never execute directly.
+- External content may provide data but cannot grant authorization.
+- Deterministic hard blocks are not overridable by semantic models.
 - Sensitive failures degrade to `BLOCK` or `REQUIRE_APPROVAL`, never silent allow.
-- An explicit tool allow is necessary but never sufficient for final authorization.
-- Phase 1 must not implement production policy rules, semantic models, MCP execution, or full data-flow propagation.
+- A tool being listed in `allowed_tools` is necessary but not sufficient for final authorization.
+- Phase 1 does not implement production policy, sequence analysis, semantic inference, MCP execution, or data-flow propagation.
 - Preserve the Phase 0 field names for `IntentContract`, `ToolRequest`, `DataLabel`, `SecurityContext`, `Decision`, and `ActionReceipt`.
-- Behavior-bearing backend code is implemented test-first.
-- No frontend design system work is required in Phase 1; the dashboard only proves backend connectivity and establishes the app shell.
-- Python source uses Ruff formatting and linting; TypeScript must pass ESLint and `tsc --noEmit`.
+- Behavior-bearing backend code is written test-first.
+- Shared Pydantic models reject unknown fields with `extra="forbid"`.
+- Risk, confidence, and drift scores are constrained to `[0, 1]`.
+- Python uses Ruff formatting/linting. TypeScript must pass ESLint and `tsc --noEmit`.
 
 ---
 
@@ -33,24 +34,21 @@ INTENTFENCE/
 ├── .gitignore
 ├── Makefile
 ├── README.md
-├── .github/
-│   └── workflows/
-│       └── ci.yml
+├── .github/workflows/ci.yml
 ├── apps/
 │   ├── api/
 │   │   ├── pyproject.toml
-│   │   ├── src/
-│   │   │   └── intentfence_api/
+│   │   ├── src/intentfence_api/
+│   │   │   ├── __init__.py
+│   │   │   ├── app.py
+│   │   │   ├── config.py
+│   │   │   ├── db.py
+│   │   │   ├── db_models.py
+│   │   │   ├── repository.py
+│   │   │   ├── schemas.py
+│   │   │   └── services/
 │   │   │       ├── __init__.py
-│   │   │       ├── app.py
-│   │   │       ├── config.py
-│   │   │       ├── db.py
-│   │   │       ├── db_models.py
-│   │   │       ├── repository.py
-│   │   │       ├── schemas.py
-│   │   │       └── services/
-│   │   │           ├── __init__.py
-│   │   │           └── foundation_authorizer.py
+│   │   │       └── foundation_authorizer.py
 │   │   └── tests/
 │   │       ├── conftest.py
 │   │       ├── test_app.py
@@ -66,25 +64,21 @@ INTENTFENCE/
 │       │   ├── globals.css
 │       │   ├── layout.tsx
 │       │   └── page.tsx
-│       ├── components/
-│       │   └── HealthCard.tsx
-│       └── lib/
-│           └── api.ts
+│       ├── components/HealthCard.tsx
+│       └── lib/api.ts
 └── packages/
     └── contracts/
         ├── pyproject.toml
-        ├── src/
-        │   └── intentfence_contracts/
-        │       ├── __init__.py
-        │       ├── enums.py
-        │       └── models.py
-        └── tests/
-            └── test_models.py
+        ├── src/intentfence_contracts/
+        │   ├── __init__.py
+        │   ├── enums.py
+        │   └── models.py
+        └── tests/test_models.py
 ```
 
 ---
 
-### Task 1: Establish repository tooling and Python package boundaries
+### Task 1: Scaffold repository tooling and Python packages
 
 **Files:**
 - Create: `.gitignore`
@@ -97,41 +91,30 @@ INTENTFENCE/
 - Create: `apps/api/src/intentfence_api/services/__init__.py`
 
 **Interfaces:**
-- Produces installable Python packages named `intentfence-contracts` and `intentfence-api`.
-- Later backend tasks import shared contracts from `intentfence_contracts`.
+- Produces installable packages `intentfence-contracts` and `intentfence-api`.
+- Later tasks import shared types with `from intentfence_contracts import ...`.
 
-- [ ] **Step 1: Add repository ignore rules**
-
-Create `.gitignore`:
+- [ ] **Step 1: Create `.gitignore`**
 
 ```gitignore
-# Python
 __pycache__/
 *.py[cod]
 .pytest_cache/
 .ruff_cache/
 .venv/
 *.egg-info/
-
-# Node
 node_modules/
 .next/
-
-# Environment and local data
 .env
 *.db
 *.sqlite
 *.sqlite3
-
-# Editors / OS
 .DS_Store
 .vscode/
 .idea/
 ```
 
-- [ ] **Step 2: Add the shared environment contract**
-
-Create `.env.example`:
+- [ ] **Step 2: Create `.env.example`**
 
 ```dotenv
 INTENTFENCE_ENV=development
@@ -142,9 +125,7 @@ INTENTFENCE_CORS_ORIGINS=http://localhost:3000
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 ```
 
-- [ ] **Step 3: Create the contracts package metadata**
-
-Create `packages/contracts/pyproject.toml`:
+- [ ] **Step 3: Create `packages/contracts/pyproject.toml`**
 
 ```toml
 [build-system]
@@ -154,25 +135,20 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "intentfence-contracts"
 version = "0.1.0"
-description = "Shared typed security contracts for IntentFence"
 requires-python = ">=3.12"
-dependencies = [
-  "pydantic>=2.8,<3",
-]
+dependencies = ["pydantic>=2.8,<3"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
 ```
 
-Create `packages/contracts/src/intentfence_contracts/__init__.py` with an empty module docstring only:
+Create `packages/contracts/src/intentfence_contracts/__init__.py`:
 
 ```python
 """Shared typed contracts for IntentFence."""
 ```
 
-- [ ] **Step 4: Create the API package metadata**
-
-Create `apps/api/pyproject.toml`:
+- [ ] **Step 4: Create `apps/api/pyproject.toml`**
 
 ```toml
 [build-system]
@@ -182,7 +158,6 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "intentfence-api"
 version = "0.1.0"
-description = "IntentFence runtime authorization API"
 requires-python = ">=3.12"
 dependencies = [
   "fastapi>=0.116,<1",
@@ -202,9 +177,6 @@ dev = [
 [tool.setuptools.packages.find]
 where = ["src"]
 
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-
 [tool.ruff]
 target-version = "py312"
 line-length = 100
@@ -222,12 +194,10 @@ Create `apps/api/src/intentfence_api/__init__.py`:
 Create `apps/api/src/intentfence_api/services/__init__.py`:
 
 ```python
-"""Application services for IntentFence."""
+"""IntentFence application services."""
 ```
 
-- [ ] **Step 5: Add root developer commands**
-
-Create `Makefile`:
+- [ ] **Step 5: Create root `Makefile`**
 
 ```makefile
 .PHONY: setup-backend test-backend lint-backend format-backend setup-frontend test-frontend dev-api dev-dashboard
@@ -235,7 +205,7 @@ Create `Makefile`:
 setup-backend:
 	python -m pip install -e ./packages/contracts -e "./apps/api[dev]"
 
- test-backend:
+test-backend:
 	python -m pytest packages/contracts/tests apps/api/tests -q
 
 lint-backend:
@@ -259,39 +229,29 @@ dev-dashboard:
 	npm --prefix apps/dashboard run dev
 ```
 
-Before committing, remove the single leading space before `test-backend:` so all Make targets begin in column 1. The resulting target line must be exactly:
-
-```makefile
-test-backend:
-```
-
-- [ ] **Step 6: Verify editable installation succeeds**
-
-Run:
+- [ ] **Step 6: Verify package installation**
 
 ```bash
 python -m pip install -e ./packages/contracts -e "./apps/api[dev]"
 python -c "import intentfence_api, intentfence_contracts; print('imports-ok')"
 ```
 
-Expected output:
+Expected:
 
 ```text
 imports-ok
 ```
 
-- [ ] **Step 7: Commit the package foundation**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add .gitignore .env.example Makefile packages/contracts apps/api
- git commit -m "build: scaffold IntentFence backend packages"
+git commit -m "build: scaffold IntentFence backend packages"
 ```
-
-Before executing, remove the single leading space before `git commit` so the command is exactly `git commit -m "build: scaffold IntentFence backend packages"`.
 
 ---
 
-### Task 2: Implement the six fixed shared security contracts test-first
+### Task 2: Implement the six fixed shared security contracts
 
 **Files:**
 - Create: `packages/contracts/src/intentfence_contracts/enums.py`
@@ -300,11 +260,10 @@ Before executing, remove the single leading space before `git commit` so the com
 - Create: `packages/contracts/tests/test_models.py`
 
 **Interfaces:**
-- Produces: `IntentContract`, `ToolRequest`, `DataLabel`, `SecurityContext`, `Decision`, `ActionReceipt`.
-- Produces enums: `DecisionType`, `DecisionSource`, `SourceContext`, `Sensitivity`, `ResourceClass`, `DestinationClass`, `RiskTolerance`, `RuleStrength`.
-- All later backend tasks import these names from `intentfence_contracts`.
+- Produces `IntentContract`, `ToolRequest`, `DataLabel`, `SecurityContext`, `Decision`, `ActionReceipt`.
+- Produces `DecisionType`, `DecisionSource`, `SourceContext`, `Sensitivity`, `ResourceClass`, `DestinationClass`, `RiskTolerance`, `RuleStrength`.
 
-- [ ] **Step 1: Write failing model tests**
+- [ ] **Step 1: Write failing contract tests**
 
 Create `packages/contracts/tests/test_models.py`:
 
@@ -333,7 +292,7 @@ from intentfence_contracts import (
 NOW = datetime(2026, 8, 22, 8, 30, tzinfo=UTC)
 
 
-def valid_intent() -> IntentContract:
+def make_intent() -> IntentContract:
     return IntentContract(
         intent_id="intent-001-v1",
         session_id="hotel-demo",
@@ -351,21 +310,27 @@ def valid_intent() -> IntentContract:
     )
 
 
-def test_intent_contract_preserves_phase_zero_fields():
-    contract = valid_intent()
-    assert contract.intent_id == "intent-001-v1"
+def test_intent_contract_accepts_phase_zero_schema():
+    contract = make_intent()
     assert contract.contract_version == 1
     assert contract.risk_tolerance.value == "medium"
 
 
 def test_intent_contract_rejects_zero_version():
-    payload = valid_intent().model_dump()
+    payload = make_intent().model_dump()
     payload["contract_version"] = 0
     with pytest.raises(ValidationError):
         IntentContract.model_validate(payload)
 
 
-def test_tool_request_parses_source_context_and_data_refs():
+def test_contract_models_reject_unknown_fields():
+    payload = make_intent().model_dump()
+    payload["external_authorization"] = True
+    with pytest.raises(ValidationError):
+        IntentContract.model_validate(payload)
+
+
+def test_tool_request_preserves_untrusted_source_context():
     request = ToolRequest(
         request_id="req-001",
         session_id="hotel-demo",
@@ -378,10 +343,20 @@ def test_tool_request_parses_source_context_and_data_refs():
         timestamp=NOW,
     )
     assert request.source_context is SourceContext.EXTERNAL_WEB
-    assert request.data_refs == ["data-secret-001"]
 
 
-def test_data_label_retains_critical_sensitivity():
+def test_security_context_rejects_score_above_one():
+    with pytest.raises(ValidationError):
+        SecurityContext(
+            session_id="hotel-demo",
+            intent_id="intent-001-v1",
+            accumulated_risk=1.2,
+            intent_drift_score=0.1,
+            last_updated_at=NOW,
+        )
+
+
+def test_data_label_and_action_receipt_preserve_security_metadata():
     label = DataLabel(
         data_id="data-secret-001",
         data_type="API_KEY",
@@ -395,35 +370,6 @@ def test_data_label_retains_critical_sensitivity():
         derived_from=[],
         created_at=NOW,
     )
-    assert label.sensitivity is Sensitivity.CRITICAL
-
-
-def test_security_context_scores_must_stay_in_unit_interval():
-    with pytest.raises(ValidationError):
-        SecurityContext(
-            session_id="hotel-demo",
-            intent_id="intent-001-v1",
-            accumulated_risk=1.2,
-            intent_drift_score=0.1,
-            last_updated_at=NOW,
-        )
-
-
-def test_decision_uses_fixed_decision_source_values():
-    decision = Decision(
-        decision=DecisionType.BLOCK,
-        reason="Intent identifiers do not match.",
-        risk_score=1.0,
-        decision_source=DecisionSource.POLICY,
-        matched_rules=["INTENT_ID_MISMATCH"],
-        semantic_confidence=None,
-        requires_approval=False,
-        receipt_id="receipt-001",
-    )
-    assert decision.decision is DecisionType.BLOCK
-
-
-def test_action_receipt_supports_machine_audit_fields():
     receipt = ActionReceipt(
         receipt_id="receipt-001",
         timestamp=NOW,
@@ -434,7 +380,7 @@ def test_action_receipt_supports_machine_audit_fields():
         resource_class=ResourceClass.CREDENTIAL,
         destination="attacker.example",
         destination_class=DestinationClass.UNKNOWN_EXTERNAL,
-        data_refs=["data-secret-001"],
+        data_refs=[label.data_id],
         matched_rules=["SECRET_TO_UNKNOWN_EXTERNAL"],
         rule_strength=RuleStrength.HARD_BLOCK,
         semantic_relevance_score=None,
@@ -445,18 +391,31 @@ def test_action_receipt_supports_machine_audit_fields():
         reason="Critical credential data cannot leave the approved task boundary.",
         latency_ms=7,
     )
+    assert label.sensitivity is Sensitivity.CRITICAL
     assert receipt.rule_strength is RuleStrength.HARD_BLOCK
+
+
+def test_decision_uses_fixed_source_enum():
+    decision = Decision(
+        decision=DecisionType.BLOCK,
+        reason="Intent identifiers do not match.",
+        risk_score=1.0,
+        decision_source=DecisionSource.POLICY,
+        matched_rules=["INTENT_ID_MISMATCH"],
+        semantic_confidence=None,
+        requires_approval=False,
+        receipt_id="receipt-001",
+    )
+    assert decision.decision_source is DecisionSource.POLICY
 ```
 
-- [ ] **Step 2: Run tests and confirm they fail because contracts do not exist**
-
-Run:
+- [ ] **Step 2: Verify tests fail before implementation**
 
 ```bash
 python -m pytest packages/contracts/tests/test_models.py -q
 ```
 
-Expected: import failure for `IntentContract` or another missing exported contract.
+Expected: import failure for missing exported contracts.
 
 - [ ] **Step 3: Implement enums**
 
@@ -527,7 +486,7 @@ class RuleStrength(StrEnum):
     REQUIRE_APPROVAL = "REQUIRE_APPROVAL"
 ```
 
-- [ ] **Step 4: Implement Pydantic contracts**
+- [ ] **Step 4: Implement shared Pydantic models**
 
 Create `packages/contracts/src/intentfence_contracts/models.py`:
 
@@ -642,7 +601,7 @@ class ActionReceipt(ContractModel):
     latency_ms: int = Field(ge=0)
 ```
 
-- [ ] **Step 5: Export the fixed public interface**
+- [ ] **Step 5: Export the public contract API**
 
 Replace `packages/contracts/src/intentfence_contracts/__init__.py` with:
 
@@ -679,26 +638,25 @@ __all__ = [
 ]
 ```
 
-- [ ] **Step 6: Run contract tests**
+- [ ] **Step 6: Run tests and lint**
 
 ```bash
 python -m pytest packages/contracts/tests/test_models.py -q
+python -m ruff check packages/contracts
 ```
 
-Expected: `7 passed`.
+Expected: seven tests pass and Ruff exits 0.
 
-- [ ] **Step 7: Commit the contracts**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add packages/contracts
- git commit -m "feat: define IntentFence security contracts"
+git commit -m "feat: define IntentFence security contracts"
 ```
-
-Before executing, remove the single leading space before `git commit`.
 
 ---
 
-### Task 3: Add typed settings and a FastAPI health endpoint test-first
+### Task 3: Add typed settings and the FastAPI health service
 
 **Files:**
 - Create: `apps/api/src/intentfence_api/config.py`
@@ -707,9 +665,8 @@ Before executing, remove the single leading space before `git commit`.
 - Create: `apps/api/tests/test_app.py`
 
 **Interfaces:**
-- Produces `Settings` and `get_settings()`.
-- Produces FastAPI object `intentfence_api.app:app`.
-- Produces `GET /health -> {"status": "ok", "service": "intentfence-api"}`.
+- Produces `Settings`, `get_settings()`, and `intentfence_api.app:app`.
+- Produces `GET /health` with the fixed response `{"status":"ok","service":"intentfence-api"}`.
 
 - [ ] **Step 1: Write the failing health test**
 
@@ -736,7 +693,7 @@ def test_health_endpoint(client):
     assert response.json() == {"status": "ok", "service": "intentfence-api"}
 ```
 
-- [ ] **Step 2: Run the health test and confirm failure**
+- [ ] **Step 2: Run and verify failure**
 
 ```bash
 python -m pytest apps/api/tests/test_app.py -q
@@ -744,7 +701,7 @@ python -m pytest apps/api/tests/test_app.py -q
 
 Expected: import failure because `intentfence_api.app` does not exist.
 
-- [ ] **Step 3: Implement typed settings**
+- [ ] **Step 3: Implement settings**
 
 Create `apps/api/src/intentfence_api/config.py`:
 
@@ -756,11 +713,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_prefix="INTENTFENCE_",
-        env_file=".env",
-        extra="ignore",
-    )
+    model_config = SettingsConfigDict(env_prefix="INTENTFENCE_", env_file=".env", extra="ignore")
 
     env: str = "development"
     api_host: str = "0.0.0.0"
@@ -770,7 +723,7 @@ class Settings(BaseSettings):
 
     @property
     def cors_origin_list(self) -> list[str]:
-        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+        return [value.strip() for value in self.cors_origins.split(",") if value.strip()]
 
 
 @lru_cache
@@ -778,7 +731,7 @@ def get_settings() -> Settings:
     return Settings()
 ```
 
-- [ ] **Step 4: Implement the FastAPI app**
+- [ ] **Step 4: Implement the app and CORS boundary**
 
 Create `apps/api/src/intentfence_api/app.py`:
 
@@ -789,7 +742,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import get_settings
 
 settings = get_settings()
-
 app = FastAPI(title="IntentFence API", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
@@ -805,26 +757,25 @@ def health() -> dict[str, str]:
     return {"status": "ok", "service": "intentfence-api"}
 ```
 
-- [ ] **Step 5: Run the health test**
+- [ ] **Step 5: Verify**
 
 ```bash
 python -m pytest apps/api/tests/test_app.py -q
+python -m ruff check apps/api
 ```
 
-Expected: `1 passed`.
+Expected: one test passes and Ruff exits 0.
 
-- [ ] **Step 6: Commit the runnable API shell**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add apps/api/src/intentfence_api/config.py apps/api/src/intentfence_api/app.py apps/api/tests
- git commit -m "feat: add IntentFence API health service"
+git commit -m "feat: add IntentFence API health service"
 ```
-
-Before executing, remove the single leading space before `git commit`.
 
 ---
 
-### Task 4: Add the fail-closed Phase 1 authorization interface test-first
+### Task 4: Add the fail-closed Phase 1 authorization boundary
 
 **Files:**
 - Create: `apps/api/src/intentfence_api/schemas.py`
@@ -833,12 +784,12 @@ Before executing, remove the single leading space before `git commit`.
 - Create: `apps/api/tests/test_authorize.py`
 
 **Interfaces:**
-- Produces `AuthorizeRequest(tool_request, intent_contract, security_context)`.
+- Produces `AuthorizeRequest`.
 - Produces `authorize_foundation(payload: AuthorizeRequest, now: datetime | None = None) -> Decision`.
 - Produces `POST /authorize -> Decision`.
-- Phase 2 may replace `authorize_foundation` internals but must preserve the endpoint request/response shapes.
+- Phase 2 replaces authorization internals without changing the endpoint payload shape.
 
-- [ ] **Step 1: Write failing unit tests for fail-closed behavior**
+- [ ] **Step 1: Write failing authorization tests**
 
 Create `apps/api/tests/test_authorize.py`:
 
@@ -852,7 +803,7 @@ from intentfence_api.services.foundation_authorizer import authorize_foundation
 NOW = datetime(2026, 8, 22, 8, 30, tzinfo=UTC)
 
 
-def build_payload(*, request_intent_id="intent-001-v1", expires_at=None) -> AuthorizeRequest:
+def build_payload(*, request_intent_id="intent-001-v1", request_session_id="hotel-demo", expires_at=None):
     contract = IntentContract(
         intent_id="intent-001-v1",
         session_id="hotel-demo",
@@ -868,9 +819,9 @@ def build_payload(*, request_intent_id="intent-001-v1", expires_at=None) -> Auth
         contract_version=1,
         previous_intent_id=None,
     )
-    tool_request = ToolRequest(
+    request = ToolRequest(
         request_id="req-001",
-        session_id="hotel-demo",
+        session_id=request_session_id,
         agent_id="demo-agent",
         intent_id=request_intent_id,
         tool="browse_web",
@@ -884,14 +835,16 @@ def build_payload(*, request_intent_id="intent-001-v1", expires_at=None) -> Auth
         intent_id="intent-001-v1",
         last_updated_at=NOW,
     )
-    return AuthorizeRequest(
-        tool_request=tool_request,
-        intent_contract=contract,
-        security_context=context,
-    )
+    return AuthorizeRequest(tool_request=request, intent_contract=contract, security_context=context)
 
 
-def test_mismatched_intent_id_blocks():
+def test_session_mismatch_blocks():
+    decision = authorize_foundation(build_payload(request_session_id="other-session"), now=NOW)
+    assert decision.decision is DecisionType.BLOCK
+    assert decision.matched_rules == ["SESSION_ID_MISMATCH"]
+
+
+def test_intent_mismatch_blocks():
     decision = authorize_foundation(build_payload(request_intent_id="wrong-intent"), now=NOW)
     assert decision.decision is DecisionType.BLOCK
     assert decision.matched_rules == ["INTENT_ID_MISMATCH"]
@@ -903,22 +856,22 @@ def test_expired_contract_blocks():
     assert decision.matched_rules == ["INTENT_CONTRACT_EXPIRED"]
 
 
-def test_valid_phase_one_request_requires_approval_instead_of_silent_allow():
+def test_valid_phase_one_request_requires_approval_not_allow():
     decision = authorize_foundation(build_payload(expires_at=NOW + timedelta(hours=1)), now=NOW)
     assert decision.decision is DecisionType.REQUIRE_APPROVAL
     assert decision.requires_approval is True
     assert decision.matched_rules == ["FOUNDATION_POLICY_NOT_ACTIVE"]
 ```
 
-- [ ] **Step 2: Run tests and confirm failure**
+- [ ] **Step 2: Verify tests fail**
 
 ```bash
 python -m pytest apps/api/tests/test_authorize.py -q
 ```
 
-Expected: import failure for `intentfence_api.schemas` or `foundation_authorizer`.
+Expected: import failure for missing authorization modules.
 
-- [ ] **Step 3: Define the API request wrapper**
+- [ ] **Step 3: Create API wrapper schema**
 
 Create `apps/api/src/intentfence_api/schemas.py`:
 
@@ -936,7 +889,7 @@ class AuthorizeRequest(BaseModel):
     security_context: SecurityContext
 ```
 
-- [ ] **Step 4: Implement only the Phase 1 deterministic foundation rules**
+- [ ] **Step 4: Implement only foundation checks**
 
 Create `apps/api/src/intentfence_api/services/foundation_authorizer.py`:
 
@@ -997,7 +950,7 @@ def authorize_foundation(payload: AuthorizeRequest, now: datetime | None = None)
 
     return Decision(
         decision=DecisionType.REQUIRE_APPROVAL,
-        reason="Phase 1 validates the authorization boundary but does not activate production policy rules.",
+        reason="The Phase 1 boundary is valid, but production authorization policy is not active.",
         risk_score=0.5,
         decision_source=DecisionSource.POLICY,
         matched_rules=["FOUNDATION_POLICY_NOT_ACTIVE"],
@@ -1007,27 +960,26 @@ def authorize_foundation(payload: AuthorizeRequest, now: datetime | None = None)
     )
 ```
 
-This intentionally never returns `ALLOW` in Phase 1. The safe default prevents the scaffold from becoming an accidental execution bypass before Phase 2 exists.
+- [ ] **Step 5: Wire the endpoint**
 
-- [ ] **Step 5: Expose `POST /authorize`**
-
-Append to `apps/api/src/intentfence_api/app.py`:
+Update `apps/api/src/intentfence_api/app.py` so imports include:
 
 ```python
 from intentfence_contracts import Decision
 
 from .schemas import AuthorizeRequest
 from .services.foundation_authorizer import authorize_foundation
+```
 
+Add:
 
+```python
 @app.post("/authorize", response_model=Decision)
 def authorize(payload: AuthorizeRequest) -> Decision:
     return authorize_foundation(payload)
 ```
 
-Move these imports to the top of the module when editing so Ruff import ordering passes.
-
-- [ ] **Step 6: Add one endpoint-level validation test**
+- [ ] **Step 6: Add endpoint-level test**
 
 Append to `apps/api/tests/test_authorize.py`:
 
@@ -1036,31 +988,29 @@ def test_authorize_endpoint_returns_typed_decision(client):
     payload = build_payload(expires_at=NOW + timedelta(hours=1)).model_dump(mode="json")
     response = client.post("/authorize", json=payload)
     assert response.status_code == 200
-    body = response.json()
-    assert body["decision"] == "REQUIRE_APPROVAL"
-    assert body["decision_source"] == "POLICY"
+    assert response.json()["decision"] == "REQUIRE_APPROVAL"
+    assert response.json()["decision_source"] == "POLICY"
 ```
 
-- [ ] **Step 7: Run authorization tests**
+- [ ] **Step 7: Verify**
 
 ```bash
 python -m pytest apps/api/tests/test_authorize.py -q
+python -m ruff check apps/api
 ```
 
-Expected: `4 passed`.
+Expected: five tests pass and Ruff exits 0.
 
-- [ ] **Step 8: Commit the endpoint**
+- [ ] **Step 8: Commit**
 
 ```bash
 git add apps/api/src/intentfence_api apps/api/tests/test_authorize.py
- git commit -m "feat: add fail-closed authorization interface"
+git commit -m "feat: add fail-closed authorization interface"
 ```
-
-Before executing, remove the single leading space before `git commit`.
 
 ---
 
-### Task 5: Add SQLite persistence primitives test-first
+### Task 5: Add SQLite persistence primitives
 
 **Files:**
 - Create: `apps/api/src/intentfence_api/db.py`
@@ -1069,14 +1019,16 @@ Before executing, remove the single leading space before `git commit`.
 - Create: `apps/api/tests/test_db.py`
 
 **Interfaces:**
-- Produces `create_engine_from_url(database_url: str) -> Engine`.
-- Produces `init_db(engine: Engine) -> None`.
-- Produces `ReceiptRepository.save(receipt: ActionReceipt) -> None`.
-- Produces `SecurityContextRepository.upsert(context: SecurityContext) -> None` and `get(session_id: str) -> SecurityContext | None`.
+- `create_engine_from_url(database_url: str) -> Engine`
+- `init_db(engine: Engine) -> None`
+- `ReceiptRepository.save(receipt: ActionReceipt) -> None`
+- `ReceiptRepository.get(receipt_id: str) -> ActionReceipt | None`
+- `SecurityContextRepository.upsert(context: SecurityContext) -> None`
+- `SecurityContextRepository.get(session_id: str) -> SecurityContext | None`
 
 - [ ] **Step 1: Write failing persistence tests**
 
-Create `apps/api/tests/test_db.py`:
+Create `apps/api/tests/test_db.py` with two tests: one Action Receipt round-trip and one SecurityContext round-trip. Use an in-memory SQLite engine and the exact Phase 0 fields.
 
 ```python
 from datetime import UTC, datetime
@@ -1102,9 +1054,8 @@ def memory_engine():
     return engine
 
 
-def test_receipt_repository_persists_machine_receipt():
-    engine = memory_engine()
-    repo = ReceiptRepository(engine)
+def test_receipt_round_trip():
+    repo = ReceiptRepository(memory_engine())
     receipt = ActionReceipt(
         receipt_id="receipt-001",
         timestamp=NOW,
@@ -1123,16 +1074,15 @@ def test_receipt_repository_persists_machine_receipt():
         risk_score=1.0,
         decision_source=DecisionSource.POLICY,
         final_decision=DecisionType.BLOCK,
-        reason="Blocked for test.",
+        reason="Blocked for persistence test.",
         latency_ms=7,
     )
     repo.save(receipt)
     assert repo.get("receipt-001") == receipt
 
 
-def test_security_context_repository_upserts_latest_context():
-    engine = memory_engine()
-    repo = SecurityContextRepository(engine)
+def test_security_context_round_trip():
+    repo = SecurityContextRepository(memory_engine())
     context = SecurityContext(
         session_id="hotel-demo",
         intent_id="intent-001-v1",
@@ -1144,15 +1094,15 @@ def test_security_context_repository_upserts_latest_context():
     assert repo.get("hotel-demo") == context
 ```
 
-- [ ] **Step 2: Run tests and confirm failure**
+- [ ] **Step 2: Verify tests fail**
 
 ```bash
 python -m pytest apps/api/tests/test_db.py -q
 ```
 
-Expected: import failure because database modules do not exist.
+Expected: import failure for missing DB modules.
 
-- [ ] **Step 3: Implement engine creation and schema initialization**
+- [ ] **Step 3: Implement engine and base**
 
 Create `apps/api/src/intentfence_api/db.py`:
 
@@ -1176,7 +1126,7 @@ def init_db(engine: Engine) -> None:
     Base.metadata.create_all(engine)
 ```
 
-- [ ] **Step 4: Implement storage rows as JSON payload records**
+- [ ] **Step 4: Implement database rows**
 
 Create `apps/api/src/intentfence_api/db_models.py`:
 
@@ -1208,12 +1158,12 @@ class SecurityContextRecord(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
 ```
 
-- [ ] **Step 5: Implement repositories using validated JSON round trips**
+- [ ] **Step 5: Implement repositories**
 
 Create `apps/api/src/intentfence_api/repository.py`:
 
 ```python
-from sqlalchemy import Engine, select
+from sqlalchemy import Engine
 from sqlalchemy.orm import Session
 
 from intentfence_contracts import ActionReceipt, SecurityContext
@@ -1226,23 +1176,22 @@ class ReceiptRepository:
         self.engine = engine
 
     def save(self, receipt: ActionReceipt) -> None:
-        record = ReceiptRecord(
-            receipt_id=receipt.receipt_id,
-            session_id=receipt.session_id,
-            intent_id=receipt.intent_id,
-            payload_json=receipt.model_dump_json(),
-            created_at=receipt.timestamp,
-        )
         with Session(self.engine) as session:
-            session.merge(record)
+            session.merge(
+                ReceiptRecord(
+                    receipt_id=receipt.receipt_id,
+                    session_id=receipt.session_id,
+                    intent_id=receipt.intent_id,
+                    payload_json=receipt.model_dump_json(),
+                    created_at=receipt.timestamp,
+                )
+            )
             session.commit()
 
     def get(self, receipt_id: str) -> ActionReceipt | None:
         with Session(self.engine) as session:
             record = session.get(ReceiptRecord, receipt_id)
-            if record is None:
-                return None
-            return ActionReceipt.model_validate_json(record.payload_json)
+            return None if record is None else ActionReceipt.model_validate_json(record.payload_json)
 
 
 class SecurityContextRepository:
@@ -1250,60 +1199,46 @@ class SecurityContextRepository:
         self.engine = engine
 
     def upsert(self, context: SecurityContext) -> None:
-        record = SecurityContextRecord(
-            session_id=context.session_id,
-            intent_id=context.intent_id,
-            payload_json=context.model_dump_json(),
-            updated_at=context.last_updated_at,
-        )
         with Session(self.engine) as session:
-            session.merge(record)
+            session.merge(
+                SecurityContextRecord(
+                    session_id=context.session_id,
+                    intent_id=context.intent_id,
+                    payload_json=context.model_dump_json(),
+                    updated_at=context.last_updated_at,
+                )
+            )
             session.commit()
 
     def get(self, session_id: str) -> SecurityContext | None:
         with Session(self.engine) as session:
-            statement = select(SecurityContextRecord).where(
-                SecurityContextRecord.session_id == session_id
-            )
-            record = session.scalar(statement)
-            if record is None:
-                return None
-            return SecurityContext.model_validate_json(record.payload_json)
+            record = session.get(SecurityContextRecord, session_id)
+            return None if record is None else SecurityContext.model_validate_json(record.payload_json)
 ```
 
-- [ ] **Step 6: Run persistence tests**
-
-```bash
-python -m pytest apps/api/tests/test_db.py -q
-```
-
-Expected: `2 passed`.
-
-- [ ] **Step 7: Run all backend tests and lint**
+- [ ] **Step 6: Verify full backend suite**
 
 ```bash
 python -m pytest packages/contracts/tests apps/api/tests -q
 python -m ruff check packages/contracts apps/api
 ```
 
-Expected: all tests pass and Ruff exits successfully.
+Expected: all tests pass and Ruff exits 0.
 
-- [ ] **Step 8: Commit persistence foundation**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add apps/api/src/intentfence_api/db.py apps/api/src/intentfence_api/db_models.py apps/api/src/intentfence_api/repository.py apps/api/tests/test_db.py
- git commit -m "feat: add IntentFence SQLite persistence foundation"
+git commit -m "feat: add IntentFence SQLite persistence foundation"
 ```
-
-Before executing, remove the single leading space before `git commit`.
 
 ---
 
-### Task 6: Bootstrap the dashboard shell and backend health connection
+### Task 6: Bootstrap the dashboard shell and health connection
 
 **Files:**
 - Create: `apps/dashboard/package.json`
-- Generate and commit: `apps/dashboard/package-lock.json`
+- Generate: `apps/dashboard/package-lock.json`
 - Create: `apps/dashboard/next.config.ts`
 - Create: `apps/dashboard/tsconfig.json`
 - Create: `apps/dashboard/eslint.config.mjs`
@@ -1314,13 +1249,11 @@ Before executing, remove the single leading space before `git commit`.
 - Create: `apps/dashboard/lib/api.ts`
 
 **Interfaces:**
-- Produces `getApiBaseUrl(): string`.
-- Produces client-side health probe to `GET /health`.
-- Does not implement the Phase 7 security console.
+- `getApiBaseUrl() -> string`
+- Client-side health probe to `/health`.
+- No Phase 7 security console functionality yet.
 
-- [ ] **Step 1: Create package metadata**
-
-Create `apps/dashboard/package.json`:
+- [ ] **Step 1: Create `apps/dashboard/package.json`**
 
 ```json
 {
@@ -1340,6 +1273,7 @@ Create `apps/dashboard/package.json`:
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.0.0",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
@@ -1350,19 +1284,18 @@ Create `apps/dashboard/package.json`:
 }
 ```
 
-- [ ] **Step 2: Add Next.js and TypeScript configuration**
+- [ ] **Step 2: Create Next and TypeScript config**
 
-Create `apps/dashboard/next.config.ts`:
+`apps/dashboard/next.config.ts`:
 
 ```typescript
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {};
-
 export default nextConfig;
 ```
 
-Create `apps/dashboard/tsconfig.json`:
+`apps/dashboard/tsconfig.json`:
 
 ```json
 {
@@ -1388,7 +1321,7 @@ Create `apps/dashboard/tsconfig.json`:
 }
 ```
 
-Create `apps/dashboard/eslint.config.mjs`:
+`apps/dashboard/eslint.config.mjs`:
 
 ```javascript
 import { FlatCompat } from "@eslint/eslintrc";
@@ -1402,15 +1335,9 @@ const compat = new FlatCompat({ baseDirectory: __dirname });
 export default [...compat.extends("next/core-web-vitals", "next/typescript")];
 ```
 
-Because this config imports `@eslint/eslintrc`, add it to `devDependencies` in `package.json`:
+- [ ] **Step 3: Implement health API helper and client component**
 
-```json
-"@eslint/eslintrc": "^3.0.0"
-```
-
-- [ ] **Step 3: Implement the API base URL helper**
-
-Create `apps/dashboard/lib/api.ts`:
+`apps/dashboard/lib/api.ts`:
 
 ```typescript
 export function getApiBaseUrl(): string {
@@ -1418,15 +1345,12 @@ export function getApiBaseUrl(): string {
 }
 ```
 
-- [ ] **Step 4: Implement the client health card**
-
-Create `apps/dashboard/components/HealthCard.tsx`:
+`apps/dashboard/components/HealthCard.tsx`:
 
 ```tsx
 "use client";
 
 import { useEffect, useState } from "react";
-
 import { getApiBaseUrl } from "@/lib/api";
 
 type HealthState = "checking" | "online" | "offline";
@@ -1436,7 +1360,6 @@ export function HealthCard() {
 
   useEffect(() => {
     const controller = new AbortController();
-
     fetch(`${getApiBaseUrl()}/health`, { signal: controller.signal })
       .then((response) => {
         if (!response.ok) throw new Error("health check failed");
@@ -1446,7 +1369,6 @@ export function HealthCard() {
         if (error instanceof DOMException && error.name === "AbortError") return;
         setState("offline");
       });
-
     return () => controller.abort();
   }, []);
 
@@ -1459,14 +1381,13 @@ export function HealthCard() {
 }
 ```
 
-- [ ] **Step 5: Implement the minimal app shell**
+- [ ] **Step 4: Implement minimal app shell**
 
-Create `apps/dashboard/app/layout.tsx`:
+`apps/dashboard/app/layout.tsx`:
 
 ```tsx
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -1475,15 +1396,11 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
-  return (
-    <html lang="en">
-      <body>{children}</body>
-    </html>
-  );
+  return <html lang="en"><body>{children}</body></html>;
 }
 ```
 
-Create `apps/dashboard/app/page.tsx`:
+`apps/dashboard/app/page.tsx`:
 
 ```tsx
 import { HealthCard } from "@/components/HealthCard";
@@ -1494,10 +1411,7 @@ export default function Home() {
       <header>
         <p className="eyebrow">IntentFence</p>
         <h1>Runtime authorization for autonomous AI agents</h1>
-        <p>
-          Phase 1 establishes the typed security boundary before policy, stateful analysis,
-          data-flow enforcement, and semantic judging are enabled.
-        </p>
+        <p>Phase 1 establishes the typed security boundary before policy execution is enabled.</p>
       </header>
       <HealthCard />
     </main>
@@ -1505,73 +1419,27 @@ export default function Home() {
 }
 ```
 
-Create `apps/dashboard/app/globals.css`:
+`apps/dashboard/app/globals.css`:
 
 ```css
 :root {
-  color-scheme: light;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
   background: #f7f8fa;
   color: #16181d;
 }
-
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-}
-
-main {
-  width: min(960px, calc(100% - 48px));
-  margin: 0 auto;
-  padding: 80px 0;
-}
-
-header {
-  max-width: 720px;
-}
-
-h1 {
-  margin: 8px 0 16px;
-  font-size: clamp(2rem, 5vw, 4rem);
-  line-height: 1;
-}
-
-p {
-  line-height: 1.6;
-}
-
-.eyebrow {
-  margin: 0;
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.health-card {
-  display: flex;
-  justify-content: space-between;
-  gap: 24px;
-  margin-top: 40px;
-  padding: 20px;
-  border: 1px solid #d9dde5;
-  border-radius: 12px;
-  background: #ffffff;
-}
-
-.health-card strong[data-state="online"] {
-  color: #16794b;
-}
-
-.health-card strong[data-state="offline"] {
-  color: #b42318;
-}
+* { box-sizing: border-box; }
+body { margin: 0; }
+main { width: min(960px, calc(100% - 48px)); margin: 0 auto; padding: 80px 0; }
+header { max-width: 720px; }
+h1 { margin: 8px 0 16px; font-size: clamp(2rem, 5vw, 4rem); line-height: 1; }
+p { line-height: 1.6; }
+.eyebrow { margin: 0; font-size: .75rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.health-card { display: flex; justify-content: space-between; margin-top: 40px; padding: 20px; border: 1px solid #d9dde5; border-radius: 12px; background: #fff; }
+.health-card strong[data-state="online"] { color: #16794b; }
+.health-card strong[data-state="offline"] { color: #b42318; }
 ```
 
-- [ ] **Step 6: Install frontend dependencies and generate the lockfile**
+- [ ] **Step 5: Install and generate lockfile**
 
 ```bash
 npm --prefix apps/dashboard install
@@ -1579,7 +1447,7 @@ npm --prefix apps/dashboard install
 
 Expected: `apps/dashboard/package-lock.json` is created.
 
-- [ ] **Step 7: Run frontend checks**
+- [ ] **Step 6: Verify frontend**
 
 ```bash
 npm --prefix apps/dashboard run lint
@@ -1587,30 +1455,26 @@ npm --prefix apps/dashboard run typecheck
 npm --prefix apps/dashboard run build
 ```
 
-Expected: all three commands exit successfully.
+Expected: all commands exit 0.
 
-- [ ] **Step 8: Commit the dashboard shell**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add apps/dashboard
- git commit -m "feat: add IntentFence dashboard shell"
+git commit -m "feat: add IntentFence dashboard shell"
 ```
-
-Before executing, remove the single leading space before `git commit`.
 
 ---
 
-### Task 7: Add CI that gates backend contracts, API behavior, and dashboard builds
+### Task 7: Add CI gates
 
 **Files:**
 - Create: `.github/workflows/ci.yml`
 
 **Interfaces:**
-- Pull requests are gated by one backend job and one dashboard job.
+- Backend and dashboard checks run independently on pull requests and pushes to `main`.
 
-- [ ] **Step 1: Create the CI workflow**
-
-Create `.github/workflows/ci.yml`:
+- [ ] **Step 1: Create workflow**
 
 ```yaml
 name: CI
@@ -1629,12 +1493,9 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - name: Install backend
-        run: python -m pip install -e ./packages/contracts -e "./apps/api[dev]"
-      - name: Lint backend
-        run: python -m ruff check packages/contracts apps/api
-      - name: Test backend
-        run: python -m pytest packages/contracts/tests apps/api/tests -q
+      - run: python -m pip install -e ./packages/contracts -e "./apps/api[dev]"
+      - run: python -m ruff check packages/contracts apps/api
+      - run: python -m pytest packages/contracts/tests apps/api/tests -q
 
   dashboard:
     runs-on: ubuntu-latest
@@ -1645,17 +1506,13 @@ jobs:
           node-version: "20"
           cache: npm
           cache-dependency-path: apps/dashboard/package-lock.json
-      - name: Install dashboard
-        run: npm --prefix apps/dashboard ci
-      - name: Lint dashboard
-        run: npm --prefix apps/dashboard run lint
-      - name: Typecheck dashboard
-        run: npm --prefix apps/dashboard run typecheck
-      - name: Build dashboard
-        run: npm --prefix apps/dashboard run build
+      - run: npm --prefix apps/dashboard ci
+      - run: npm --prefix apps/dashboard run lint
+      - run: npm --prefix apps/dashboard run typecheck
+      - run: npm --prefix apps/dashboard run build
 ```
 
-- [ ] **Step 2: Run the same checks locally before relying on CI**
+- [ ] **Step 2: Run equivalent local gates**
 
 ```bash
 python -m ruff check packages/contracts apps/api
@@ -1665,49 +1522,28 @@ npm --prefix apps/dashboard run typecheck
 npm --prefix apps/dashboard run build
 ```
 
-Expected: every command exits with status 0.
+Expected: all commands exit 0.
 
-- [ ] **Step 3: Commit CI**
+- [ ] **Step 3: Commit**
 
 ```bash
 git add .github/workflows/ci.yml
- git commit -m "ci: gate IntentFence foundation"
+git commit -m "ci: gate IntentFence foundation"
 ```
-
-Before executing, remove the single leading space before `git commit`.
 
 ---
 
-### Task 8: Replace the placeholder README with exact setup and verification instructions
+### Task 8: Replace README and perform the Phase 1 smoke test
 
 **Files:**
 - Modify: `README.md`
 
 **Interfaces:**
-- A teammate can clone the repository and reach a green local foundation without prior project context.
+- A teammate with Python 3.12 and Node 20 can reproduce the foundation from the README.
 
-- [ ] **Step 1: Replace `README.md`**
+- [ ] **Step 1: Replace README with setup instructions**
 
-Use:
-
-```markdown
-# IntentFence
-
-IntentFence is a stateful, purpose-bound runtime authorization gateway for autonomous AI agents. It is designed to authorize not only tool actions, but also whether those actions and the movement of sensitive data remain inside the user's active delegated intent.
-
-## Phase 1 status
-
-The repository currently provides the typed security contracts, fail-closed FastAPI authorization boundary, SQLite persistence primitives, dashboard shell, and CI foundation required by later security phases.
-
-The Phase 1 scaffold intentionally does not return `ALLOW` from the placeholder authorizer. Production deterministic rules are introduced in Phase 2.
-
-## Requirements
-
-- Python 3.12+
-- Node.js 20+
-- npm
-
-## Backend setup
+The README must contain these commands exactly:
 
 ```bash
 python -m venv .venv
@@ -1718,24 +1554,20 @@ cp .env.example .env
 uvicorn intentfence_api.app:app --app-dir apps/api/src --reload --port 8000
 ```
 
-On Windows PowerShell, activate the environment with:
+Windows PowerShell activation:
 
 ```powershell
 .venv\Scripts\Activate.ps1
 ```
 
-The API health endpoint is available at `http://localhost:8000/health`.
-
-## Dashboard setup
+Dashboard:
 
 ```bash
 npm --prefix apps/dashboard install
 npm --prefix apps/dashboard run dev
 ```
 
-The dashboard is available at `http://localhost:3000` and reports whether the runtime API is reachable.
-
-## Verification
+Verification:
 
 ```bash
 python -m ruff check packages/contracts apps/api
@@ -1745,30 +1577,13 @@ npm --prefix apps/dashboard run typecheck
 npm --prefix apps/dashboard run build
 ```
 
-## Architecture
+The README must also state:
 
-The frozen architecture is documented in:
-
-`docs/superpowers/specs/2026-08-22-intentfence-design.md`
-
-The Phase 1 execution plan is documented in:
-
-`docs/superpowers/plans/2026-08-22-intentfence-phase-1-foundation.md`
-
-## Security invariants
-
-- External content may provide data but cannot grant authority.
-- Protected tool execution must pass through IntentFence.
-- Deterministic hard blocks are not overridable by semantic models.
-- Sensitive failures fail closed.
-- An allowed tool is not automatically an authorized action.
-
-## License
-
-AGPL-3.0
+```text
+The Phase 1 scaffold intentionally never returns ALLOW from the placeholder authorizer. Production deterministic authorization begins in Phase 2.
 ```
 
-- [ ] **Step 2: Run the complete Phase 1 verification suite**
+- [ ] **Step 2: Run complete verification**
 
 ```bash
 python -m ruff check packages/contracts apps/api
@@ -1778,9 +1593,7 @@ npm --prefix apps/dashboard run typecheck
 npm --prefix apps/dashboard run build
 ```
 
-Expected: all checks succeed.
-
-- [ ] **Step 3: Start the API and verify health manually**
+- [ ] **Step 3: Run API smoke test**
 
 Terminal 1:
 
@@ -1800,53 +1613,82 @@ Expected:
 {"status":"ok","service":"intentfence-api"}
 ```
 
-- [ ] **Step 4: Exercise the fail-closed endpoint with pytest rather than hand-maintained curl JSON**
-
-Run:
+- [ ] **Step 4: Verify fail-closed endpoint behavior**
 
 ```bash
 python -m pytest apps/api/tests/test_authorize.py::test_authorize_endpoint_returns_typed_decision -q
 ```
 
-Expected: `1 passed`.
+Expected: one test passes.
 
-- [ ] **Step 5: Commit documentation**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add README.md
- git commit -m "docs: add IntentFence foundation setup guide"
+git commit -m "docs: add IntentFence foundation setup guide"
 ```
 
-Before executing, remove the single leading space before `git commit`.
+---
+
+## Self-Review Result
+
+### Spec coverage
+
+Phase 1 intentionally covers only the Phase 0 requirements that must exist before security subsystems can be implemented:
+
+- fixed six-model contract surface
+- temporal contract fields
+- authority/source context field
+- typed fail-closed decision
+- receipt and security-context persistence primitives
+- API surface foundation
+- dashboard application shell
+- CI and reproducible setup
+
+The following Phase 0 requirements are deliberately assigned to later independent plans rather than hidden inside Phase 1:
+
+- Phase 2: resource, destination, provenance classification and deterministic policy
+- Phase 3: SecurityContext lifecycle, action-chain analysis, accumulated risk, intent drift
+- Phase 4: DataLabel creation and controlled propagation
+- Phase 5: local semantic judge and cloud escalation
+- Phase 6: agent, gateway, and protected tool integration
+- Phase 7: security console and human-readable receipt UX
+- Phase 8: benchmark, adversarial mutation, and KPI analytics
+- Phase 9: MCP adapter and red-team expansion
+
+### Placeholder scan
+
+No `TBD`, `TODO`, vague error-handling instruction, or undefined implementation step remains in this plan.
+
+### Type consistency
+
+The public types and field names match the approved Phase 0 specification. `AuthorizeRequest` is the only Phase 1 API wrapper added around the six fixed shared contracts.
 
 ---
 
 ## Phase 1 Completion Gate
 
-Do not merge the implementation PR until all conditions below are true:
+Do not merge implementation until all conditions are true:
 
-- [ ] `IntentContract`, `ToolRequest`, `DataLabel`, `SecurityContext`, `Decision`, and `ActionReceipt` are importable from `intentfence_contracts`.
-- [ ] Unknown fields are rejected by shared contract models.
-- [ ] Contract versions less than 1 are rejected.
-- [ ] Risk and confidence values outside `[0, 1]` are rejected.
-- [ ] `/health` returns HTTP 200 with the fixed payload.
-- [ ] `/authorize` blocks session or intent identity mismatches.
-- [ ] `/authorize` blocks expired contracts.
-- [ ] `/authorize` returns `REQUIRE_APPROVAL`, never `ALLOW`, when the Phase 2 policy engine is not active.
-- [ ] SQLite schema initializes successfully in memory and on a file-backed database URL.
-- [ ] Action Receipts round-trip through the repository without schema loss.
-- [ ] SecurityContext round-trips through the repository without schema loss.
+- [ ] The six fixed contracts import from `intentfence_contracts`.
+- [ ] Unknown contract fields are rejected.
+- [ ] Contract versions below 1 are rejected.
+- [ ] Risk/confidence/drift scores outside `[0,1]` are rejected.
+- [ ] `/health` returns the fixed HTTP 200 payload.
+- [ ] `/authorize` blocks session mismatch.
+- [ ] `/authorize` blocks intent mismatch.
+- [ ] `/authorize` blocks expired Intent Contracts.
+- [ ] `/authorize` never returns `ALLOW` while Phase 2 policy is absent.
+- [ ] SQLite schema initializes in memory and with the configured file database.
+- [ ] ActionReceipt round-trips without schema loss.
+- [ ] SecurityContext round-trips without schema loss.
 - [ ] Dashboard lint, typecheck, and build succeed.
 - [ ] Backend Ruff and pytest suites succeed.
-- [ ] GitHub Actions runs both backend and dashboard jobs.
-- [ ] README setup commands match the actual repository.
+- [ ] GitHub Actions contains independent backend and dashboard jobs.
+- [ ] README commands reproduce the actual setup.
 
 ## Serial Merge Rule
 
-After this Phase 1 implementation is green, merge it before creating the Phase 2 implementation branch. Phase 2 must start from the merged `main`, not from an unmerged Phase 1 branch.
+Merge the green Phase 1 implementation before creating the Phase 2 implementation branch. Phase 2 starts from merged `main`.
 
-The next plan after Phase 1 is:
-
-`Phase 2: Deterministic security policy and classification`
-
-It will own resource classification, destination classification, authority rules, purpose rules, policy result types, hard blocks, and initial sequence rules. Semantic models remain outside Phase 2.
+**Next independent plan:** `Phase 2: Deterministic security policy and classification`.
