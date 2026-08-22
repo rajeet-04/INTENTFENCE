@@ -21,7 +21,7 @@ def contract() -> IntentContract:
     return IntentContract(
         intent_id="data-intent",
         session_id="data-session",
-        objective="Transmit only approved data to approved destinations.",
+        objective="Use authentication data only for approved authentication destinations.",
         allowed_tools=["http_request", "send_message", "write_file"],
         allowed_resources=["approved_data"],
         allowed_destinations=["approved.example", "internal-auth.example"],
@@ -114,6 +114,7 @@ def test_critical_data_to_unknown_destination_hard_blocks() -> None:
     )
     assert result.decision is DecisionType.BLOCK
     assert result.hard_block is True
+    assert "SENSITIVE_DATA_TO_UNKNOWN_EXTERNAL" in result.matched_rules
 
 
 def test_label_destination_constraint_blocks_even_contract_approved_destination() -> None:
@@ -126,7 +127,7 @@ def test_label_destination_constraint_blocks_even_contract_approved_destination(
         data_labels=[critical_label()],
     )
     assert result.decision is DecisionType.BLOCK
-    assert result.matched_rules == ["DATAFLOW_DESTINATION_NOT_ALLOWED"]
+    assert "DATA_DESTINATION_NOT_ALLOWED" in result.matched_rules
 
 
 def test_critical_label_allows_its_explicit_destination() -> None:
