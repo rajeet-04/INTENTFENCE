@@ -1,17 +1,11 @@
-from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any, Protocol
 from uuid import uuid4
 
-from intentfence_contracts import (
-    DataLabel,
-    IntentContract,
-    SecurityContext,
-    SourceContext,
-)
+from intentfence_contracts import IntentContract, SourceContext
 from pydantic import BaseModel, ConfigDict, Field
 
-from .models import GatewayExecution, GatewayMode
+from .models import GatewayExecution
 from .service import IntentFenceGateway
 from .tools import ToolHandler, normalize_tool_request
 
@@ -45,11 +39,8 @@ class GatewayAgentRunner:
         self,
         call: AgentToolCall,
         intent_contract: IntentContract,
-        security_context: SecurityContext,
         *,
         handler: ToolHandler,
-        data_labels: Sequence[DataLabel] = (),
-        mode: GatewayMode = GatewayMode.ENABLED,
         now: datetime | None = None,
         scenario_id: str | None = None,
     ) -> GatewayExecution:
@@ -68,21 +59,15 @@ class GatewayAgentRunner:
         return self.gateway.intercept(
             normalized,
             intent_contract,
-            security_context,
             handler=handler,
-            data_labels=data_labels,
-            mode=mode,
             scenario_id=scenario_id,
         )
 
     def run_next(
         self,
         intent_contract: IntentContract,
-        security_context: SecurityContext,
         *,
         handler: ToolHandler,
-        data_labels: Sequence[DataLabel] = (),
-        mode: GatewayMode = GatewayMode.ENABLED,
         now: datetime | None = None,
         scenario_id: str | None = None,
     ) -> GatewayExecution:
@@ -92,10 +77,7 @@ class GatewayAgentRunner:
         return self.execute_tool_call(
             call,
             intent_contract,
-            security_context,
             handler=handler,
-            data_labels=data_labels,
-            mode=mode,
             now=now,
             scenario_id=scenario_id,
         )
