@@ -17,15 +17,16 @@ The current prototype includes the shared contracts, deterministic policy and cl
 
 ## Integration milestone
 
-**Phases 1–5 are integrated on `main`** and form the current merged security baseline:
+**Phases 1–6 are integrated on `main`** and form the current merged security baseline:
 
 1. **Phase 1 — Foundation:** strict shared contracts, API boundaries, persistence primitives, and fail-closed validation.
 2. **Phase 2 — Deterministic security:** resource/destination classification, policy rules, hard blocks, approval rules, and risk aggregation.
 3. **Phase 3 — Stateful authorization:** bounded security context, action-chain analysis, accumulated risk, and intent-drift signals.
 4. **Phase 4 — Purpose-bound data flow:** provenance-aware labels, controlled propagation, destination constraints, and fail-closed egress enforcement.
 5. **Phase 5 — Production semantic authorization:** compact semantic context, strict local/hybrid evaluation, fail-closed provider handling, and deterministic-precedence preservation.
+6. **Phase 6 — Authoritative interception gateway:** gateway-owned state and trusted labels, protected execution, sanitized receipts/events, and a controlled before/after attack demo.
 
-The protected-tool gateway uses the canonical Phase 2 policy, Phase 3 state, Phase 4 data-flow, and Phase 5 semantic adapters. Phase 6 gateway/demo capabilities remain an implemented prototype layer built on this integrated baseline.
+The Phase 6 gateway owns the public authority boundary around the canonical Phase 2 policy, Phase 3 state, Phase 4 data-flow, and Phase 5 semantic adapters. Public callers cannot disable protection or supply trusted security state and data labels.
 
 ## Submission snapshot
 
@@ -37,10 +38,10 @@ The protected-tool gateway uses the canonical Phase 2 policy, Phase 3 state, Pha
 | Stateful action-chain authorization | Implemented; used by `/authorize` and gateway | `packages/state` |
 | Purpose-bound data-flow enforcement | Implemented and integrated into the gateway | `packages/dataflow` |
 | Local/hybrid semantic intent layer | Implemented and integrated into the production API gateway; Ollama optional | `apps/api/src/intentfence_api/semantic` and `apps/api/src/intentfence_api/app.py` |
-| Protected-tool interception and receipts | Implemented with canonical Phase 2–5 enforcement | `apps/api/src/intentfence_api/gateway` |
+| Protected-tool interception and receipts | Implemented with authoritative Phase 2–6 enforcement | `apps/api/src/intentfence_api/gateway` |
 | Golden hotel prompt-injection comparison | Implemented | `POST /demo/hotel-attack` |
 | Security dashboard | Prototype shell | `apps/dashboard` |
-| Automated verification | 238 backend tests plus lint, typecheck, and production build | `make verify` and `.github/workflows/ci.yml` |
+| Automated verification | 250 backend tests plus lint, typecheck, and production build | `make verify` and `.github/workflows/ci.yml` |
 
 Deployment is intentionally out of scope for this evaluation round; the repository runs locally and is designed to be directly reviewable.
 
@@ -129,7 +130,7 @@ The demo stores only data references such as `data-secret`. It does not place a 
 
 ### Sandboxed protected runtime
 
-The HTTP API uses `SandboxProtectedToolRuntime` for CI and hackathon demonstrations. It implements the five protected tool surfaces without performing real network, messaging, or filesystem side effects. Real integrations can replace injected handlers behind the same `IntentFenceGateway.intercept(...)` boundary.
+The HTTP API uses `SandboxProtectedToolRuntime` for CI and hackathon demonstrations. It implements the five protected tool surfaces without performing real network, messaging, or filesystem side effects. Real integrations can replace injected handlers behind the authoritative `IntentFenceGateway.intercept_authoritative(...)` boundary.
 
 ## Local semantic model
 
@@ -202,7 +203,7 @@ docs/
 ## Quick start
 
 ```bash
-make setup
+make setup BUN="$HOME/.bun/bin/bun"
 cp .env.example .env
 make dev-api
 ```
@@ -210,7 +211,7 @@ make dev-api
 In a second terminal:
 
 ```bash
-make dev-dashboard
+make dev-dashboard BUN="$HOME/.bun/bin/bun"
 ```
 
 The API is available at `http://127.0.0.1:8000`, interactive API documentation at `http://127.0.0.1:8000/docs`, and the dashboard at `http://localhost:3000`.
@@ -235,6 +236,42 @@ curl -X POST http://127.0.0.1:8000/demo/hotel-attack
 
 The response runs the same five-step tool sequence with protection disabled and enabled. Review `secret_read_executed`, `exfiltration_executed`, `legitimate_workflow_completed`, decisions, receipt IDs, and sanitized security events to see the enforcement difference.
 
+## Judge demo
+
+The MVP demonstration does not require deployment, Ollama, or a cloud model. On a fresh clone, run the one-time setup from the repository root:
+
+```bash
+make setup BUN="$HOME/.bun/bin/bun"
+cp .env.example .env
+```
+
+If the backend and dashboard dependencies are already installed for the current checkout, skip that one-time setup. When uncertain, rerun the setup after removing or renaming a stale local environment. Start the API in terminal 1:
+
+```bash
+make dev-api
+```
+
+Start the dashboard in terminal 2:
+
+```bash
+make dev-dashboard BUN="$HOME/.bun/bin/bun"
+```
+
+Open these pages:
+
+- dashboard: `http://localhost:3000`
+- interactive API documentation: `http://127.0.0.1:8000/docs`
+
+In terminal 3, verify the API and run the controlled attack comparison:
+
+```bash
+curl -sS http://127.0.0.1:8000/health
+curl -sS -X POST http://127.0.0.1:8000/demo/hotel-attack \
+  | .venv/bin/python -m json.tool
+```
+
+Show the judges that the disabled run reaches the simulated secret read and exfiltration, while the enabled run blocks both and still completes the legitimate hotel-result write. The comparison uses the same five-step tool sequence in both modes and performs no real network, messaging, secret-read, or filesystem side effects.
+
 ## Manual setup
 
 Backend:
@@ -255,8 +292,8 @@ Dashboard:
 
 ```bash
 cd apps/dashboard
-bun install --frozen-lockfile
-bun run dev
+"$HOME/.bun/bin/bun" install --frozen-lockfile
+"$HOME/.bun/bin/bun" run dev
 ```
 
 By default the dashboard probes `http://localhost:8000/health`. Override it with `NEXT_PUBLIC_API_BASE_URL` when needed. Ollama and all cloud providers are optional; the automated tests do not make external model calls.
@@ -266,10 +303,10 @@ By default the dashboard probes `http://localhost:8000/health`. Override it with
 Run the same gates used by CI:
 
 ```bash
-make verify
+make verify BUN="$HOME/.bun/bin/bun"
 ```
 
-Verified on 2026-08-22: 238 backend tests passing; backend lint, SQLite initialization, API health smoke, dashboard lint, TypeScript checks, and the optimized Next.js production build complete successfully.
+Verified on 2026-08-22: 250 backend tests passing; backend lint, SQLite initialization, API health smoke, dashboard lint, TypeScript checks, and the optimized Next.js production build complete successfully.
 
 Phase 6 focused tests:
 
@@ -280,7 +317,10 @@ Phase 6 focused tests:
   apps/api/tests/test_gateway_baseline.py \
   apps/api/tests/test_gateway_service.py \
   apps/api/tests/test_gateway_demo.py \
-  apps/api/tests/test_gateway_api.py -q
+  apps/api/tests/test_gateway_api.py \
+  apps/api/tests/test_gateway_state.py \
+  apps/api/tests/test_gateway_data_registry.py \
+  apps/api/tests/test_phase6_authority_integration.py -q
 ```
 
 Semantic tests cover compact context, strict result validation, timeout/malformed/provider failure handling, Ollama request/response behavior, typed environment configuration, hybrid escalation, high-risk approval preservation, contract versioning, and operator-facing summaries.
@@ -307,10 +347,9 @@ Accepts:
 
 - `ToolRequest`
 - `IntentContract`
-- `SecurityContext`
-- optional `DataLabel[]`
-- `GatewayMode`
 - optional `scenario_id`
+
+Gateway mode, security context, and trusted data labels are gateway-owned authority inputs. The public endpoint rejects callers that attempt to supply them.
 
 Returns `GatewayExecution`, which includes the final decision, execution state, sanitized result metadata, `ActionReceipt`, and `SecurityEvent`.
 
