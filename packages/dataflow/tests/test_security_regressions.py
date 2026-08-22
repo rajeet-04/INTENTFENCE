@@ -1,7 +1,6 @@
-import pytest
 from intentfence_contracts import DecisionType, DestinationClass
 
-from intentfence_dataflow import PropagationError, encode_data, evaluate_flow
+from intentfence_dataflow import encode_data, evaluate_flow
 
 
 def test_explicit_empty_destination_override_tightens_sensitive_label(build_api_key_label):
@@ -17,12 +16,12 @@ def test_explicit_empty_destination_override_tightens_sensitive_label(build_api_
 
 def test_sensitive_data_type_cannot_be_laundered_during_transform(build_api_key_label):
     secret = build_api_key_label()
-    with pytest.raises(PropagationError):
-        encode_data(
-            secret,
-            data_id="data-laundered-type-001",
-            data_type="PUBLIC_DATA",
-        )
+    derived = encode_data(
+        secret,
+        data_id="data-laundered-type-001",
+        data_type="PUBLIC_DATA",
+    )
+    assert derived.data_type == "API_KEY"
 
 
 def test_sensitive_http_request_without_destination_requires_approval(build_api_key_label):
