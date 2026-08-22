@@ -4,7 +4,7 @@ from intentfence_contracts import Decision
 
 from .config import get_settings
 from .schemas import AuthorizeRequest
-from .services.foundation_authorizer import authorize_foundation
+from .services.policy_authorizer import authorize_request
 
 settings = get_settings()
 
@@ -31,4 +31,4 @@ def health() -> dict[str, str]:
 
 @app.post("/authorize", response_model=Decision)
 def authorize(request: AuthorizeRequest) -> Decision:
-    return authorize_foundation(request)
+    return authorize_request(request)

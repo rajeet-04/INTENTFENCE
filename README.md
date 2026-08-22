@@ -90,10 +90,45 @@ apps/
   api/          FastAPI enforcement API and semantic intent layer
   dashboard/    Next.js dashboard foundation
 packages/
-  contracts/    Shared typed security contracts
+  contracts/        Shared typed security contracts
+  classification/   Deterministic resource, destination, and provenance classifiers
+  policy/           Deterministic policy rules, risk aggregation, PolicyResult
 docs/
   superpowers/  Approved architecture and execution plans
 ```
+
+## Phase 2 deterministic policy
+
+Phase 2 adds the deterministic security layer. It is pure Python: no semantic model is required for any of these decisions.
+
+Classifiers (`intentfence_classification`):
+
+- `classify_resource(resource, config)` maps a path or URL to a `ResourceClass` (credential and secret markers, system paths, workspace membership, public web).
+- `classify_destination(destination, ...)` maps a host or URL to a `DestinationClass` using contract allow-lists plus blocked/trusted/known domain sets.
+- `classify_authority(source_context)` returns the provenance authority level; only `USER` and `SYSTEM` sources have authority-granting power, and `find_authority_claim(text)` deterministically detects external content attempting to modify authorization.
+
+Policy engine (`intentfence_policy`):
+
+- explicit Python `PolicyRule` interface; every rule is deterministic and returns a typed `RuleOutcome`;
+- hard block rules: external content cannot modify authorization (`EXTERNAL_AUTHORITY_OVERRIDE`), forbidden tool/resource (`FORBIDDEN_TOOL`, `FORBIDDEN_RESOURCE`), credential/secret access unrelated to intent (`SECRET_ACCESS_UNRELATED_TO_INTENT`), critical data to unknown or blocked destination (`CRITICAL_DATA_TO_UNTRUSTED_DESTINATION`);
+- approval rules: consequential unapproved action (`CONSEQUENTIAL_ACTION_UNAPPROVED`), write outside approved workspace (`WRITE_OUTSIDE_WORKSPACE`);
+- purpose rule: purpose-bound data misuse (`PURPOSE_BOUND_DATA_MISUSE`) with hard-block escalation for critical data;
+- risk aggregation primitives: `combine_risk`, `weighted_risk`, `state_risk_component`, `risk_tier`.
+
+The handoff export is a deterministic `PolicyResult` carrying the decision, decisive rule ID, rule strength, matched rules, reason, risk score, and request classifications:
+
+```python
+from intentfence_classification import ClassifierConfig
+from intentfence_policy import PolicyInput, evaluate_policy
+
+result = evaluate_policy(
+    PolicyInput(request=tool_request, contract=contract, context=security_context),
+    config=ClassifierConfig(workspace_roots=("/workspace",)),
+)
+assert result.decision in {"ALLOW", "BLOCK", "REQUIRE_APPROVAL"}
+```
+
+Hard blocks always take precedence over approvals; approvals take precedence over `ALLOW`.
 
 ## Prerequisites
 
@@ -144,8 +179,8 @@ By default the dashboard probes `http://localhost:8000/health`. Override it with
 Run the same gates used by CI:
 
 ```bash
-python -m ruff check packages/contracts apps/api
-python -m pytest packages/contracts/tests apps/api/tests -q
+python -m ruff check packages/contracts packages/classification packages/policy apps/api
+python -m pytest packages/contracts/tests packages/classification/tests packages/policy/tests apps/api/tests -q
 npm --prefix apps/dashboard run lint
 npm --prefix apps/dashboard run typecheck
 npm --prefix apps/dashboard run build
@@ -156,6 +191,14 @@ Verify the fail-closed endpoint specifically:
 ```bash
 python -m pytest apps/api/tests/test_authorize.py::test_authorize_endpoint_returns_typed_decision -q
 ```
+
+Verify the Phase 2 deterministic policy gate specifically:
+
+```bash
+python -m pytest packages/policy/tests -q
+```
+
+Policy tests cover safe controls, every minimum hard rule, approval escalation, purpose-bound data, precedence between hard blocks and approvals, risk aggregation, and result determinism. No semantic model is required for these decisions.
 
 Semantic tests cover compact context, strict result validation, timeout/malformed/provider failure handling, Ollama request/response behavior, typed environment configuration, hybrid escalation, high-risk approval preservation, contract versioning, and operator-facing summaries.
 
@@ -173,7 +216,7 @@ Accepts:
 - `IntentContract`
 - `SecurityContext`
 
-Returns a typed `Decision`. Until deterministic policy is integrated, a structurally valid request remains fail closed rather than granting production `ALLOW` from semantic output alone.
+Returns a typed `Decision`. Deterministic Phase 2 policy is authoritative: hard blocks cannot be overridden, and unresolved consequential actions remain fail closed to `REQUIRE_APPROVAL`.
 
 ## Shared contracts
 
