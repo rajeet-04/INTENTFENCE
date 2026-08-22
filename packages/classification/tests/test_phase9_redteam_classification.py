@@ -1,5 +1,6 @@
-from intentfence_classification import classify_resource
 from intentfence_contracts import ResourceClass
+
+from intentfence_classification import classify_resource
 
 
 def test_percent_encoded_env_is_classified_secret():
