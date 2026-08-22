@@ -499,13 +499,9 @@ function ActionReceipt({
 }) {
   return (
     <div className="rounded-xl border border-slate-800 bg-slate-900">
-
       <div className="border-b border-slate-800 p-6">
-
         <div className="flex items-start justify-between gap-4">
-
           <div>
-
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
               Action Receipt
             </p>
@@ -514,29 +510,26 @@ function ActionReceipt({
               Human-Readable Security Decision
             </h2>
 
+            <p className="mt-2 text-xs text-slate-600">
+              Explainable security decision with technical evidence
+            </p>
           </div>
 
-          <DecisionBadge
-            decision={action.decision}
-          />
-
+          <DecisionBadge decision={action.decision} />
         </div>
-
       </div>
 
       <div className="space-y-6 p-6">
-
+        {/* FINAL DECISION */}
         <div
           className={`rounded-xl border p-5 ${
             action.decision === "BLOCK"
               ? "border-red-500/30 bg-red-500/5"
-              : action.decision ===
-                  "REQUIRE_APPROVAL"
+              : action.decision === "REQUIRE_APPROVAL"
                 ? "border-amber-500/30 bg-amber-500/5"
                 : "border-emerald-500/30 bg-emerald-500/5"
           }`}
         >
-
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
             Final Decision
           </p>
@@ -545,8 +538,7 @@ function ActionReceipt({
             className={`mt-2 text-2xl font-bold ${
               action.decision === "BLOCK"
                 ? "text-red-400"
-                : action.decision ===
-                    "REQUIRE_APPROVAL"
+                : action.decision === "REQUIRE_APPROVAL"
                   ? "text-amber-400"
                   : "text-emerald-400"
             }`}
@@ -559,17 +551,15 @@ function ActionReceipt({
           <p className="mt-3 text-sm leading-6 text-slate-400">
             {getReason(action)}
           </p>
-
         </div>
 
+        {/* REQUESTED ACTION */}
         <div>
-
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
             Requested Action
           </p>
 
           <div className="mt-3 rounded-lg border border-slate-800 bg-slate-950 p-4">
-
             <p className="text-sm font-semibold text-slate-200">
               {action.action}
             </p>
@@ -577,150 +567,143 @@ function ActionReceipt({
             <p className="mt-2 font-mono text-xs text-slate-500">
               Tool: {action.tool}
             </p>
-
           </div>
-
         </div>
 
-        <div>
+        {/* EXPANDABLE TECHNICAL EVIDENCE */}
+        <details className="group rounded-xl border border-slate-800 bg-slate-950">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-5">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Technical Evidence
+              </p>
 
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Security Context
-          </p>
-
-          <div className="mt-3 grid gap-4 sm:grid-cols-2">
-
-            <ReceiptField
-              label="INTENT"
-              value="Process customer invoice"
-            />
-
-            <ReceiptField
-              label="ACTOR"
-              value="IntentFence Agent"
-            />
-
-            <ReceiptField
-              label="SOURCE"
-              value={action.data}
-            />
-
-            <ReceiptField
-              label="DATA CLASSIFICATION"
-              value={action.sensitivity}
-            />
-
-            <ReceiptField
-              label="DESTINATION"
-              value={action.destination}
-            />
-
-            <ReceiptField
-              label="DESTINATION TRUST"
-              value={action.destinationTrust}
-            />
-
-          </div>
-
-        </div>
-
-        <div>
-
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Policy Evaluation
-          </p>
-
-          <div className="mt-3 rounded-lg border border-slate-800 bg-slate-950 p-4">
-
-            <div className="flex items-center justify-between gap-4">
-
-              <span className="font-mono text-xs text-blue-400">
-                {action.policy}
-              </span>
-
-              <span className="rounded-full bg-blue-500/10 px-2.5 py-1 text-[10px] font-semibold text-blue-400">
-                POLICY MATCH
-              </span>
-
+              <p className="mt-1 text-sm font-medium text-slate-300">
+                Contract, policy, provenance and audit details
+              </p>
             </div>
 
-            <div className="mt-4 space-y-3">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-800 bg-slate-900 text-slate-400 transition group-open:rotate-180">
+              ↓
+            </span>
+          </summary>
 
-              <PolicyCheck
-                label="Intent alignment"
-                passed={
-                  action.decision !== "BLOCK"
-                }
-              />
+          <div className="space-y-6 border-t border-slate-800 p-5">
+            {/* SECURITY CONTEXT */}
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Security Context
+              </p>
 
-              <PolicyCheck
-                label="Data sensitivity"
-                passed={
-                  action.sensitivity !==
-                  "SENSITIVE"
-                }
-              />
+              <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                <ReceiptField
+                  label="INTENT"
+                  value="Process customer invoice"
+                />
 
-              <PolicyCheck
-                label="Destination trust"
-                passed={
-                  action.destinationTrust !==
-                  "UNTRUSTED"
-                }
-              />
+                <ReceiptField
+                  label="ACTOR"
+                  value="IntentFence Agent"
+                />
 
-              <PolicyCheck
-                label="Purpose boundary"
-                passed={
-                  action.policy !==
-                  "PURPOSE_BOUNDARY_VIOLATION"
-                }
-              />
+                <ReceiptField
+                  label="SOURCE"
+                  value={action.data}
+                />
 
+                <ReceiptField
+                  label="DATA CLASSIFICATION"
+                  value={action.sensitivity}
+                />
+
+                <ReceiptField
+                  label="DESTINATION"
+                  value={action.destination}
+                />
+
+                <ReceiptField
+                  label="DESTINATION TRUST"
+                  value={action.destinationTrust}
+                />
+              </div>
             </div>
 
+            {/* POLICY EVALUATION */}
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Policy Evaluation
+              </p>
+
+              <div className="mt-3 rounded-lg border border-slate-800 bg-slate-900 p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="font-mono text-xs text-blue-400">
+                    {action.policy}
+                  </span>
+
+                  <span className="rounded-full bg-blue-500/10 px-2.5 py-1 text-[10px] font-semibold text-blue-400">
+                    POLICY MATCH
+                  </span>
+                </div>
+
+                <div className="mt-4 space-y-3">
+                  <PolicyCheck
+                    label="Intent alignment"
+                    passed={action.decision !== "BLOCK"}
+                  />
+
+                  <PolicyCheck
+                    label="Data sensitivity"
+                    passed={action.sensitivity !== "SENSITIVE"}
+                  />
+
+                  <PolicyCheck
+                    label="Destination trust"
+                    passed={action.destinationTrust !== "UNTRUSTED"}
+                  />
+
+                  <PolicyCheck
+                    label="Purpose boundary"
+                    passed={action.policy !== "PURPOSE_BOUNDARY_VIOLATION"}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* AUDIT METADATA */}
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Audit Metadata
+              </p>
+
+              <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                <ReceiptField
+                  label="RECEIPT ID"
+                  value={action.id}
+                  mono
+                />
+
+                <ReceiptField
+                  label="TIMESTAMP"
+                  value={`2026-08-22 ${action.time}`}
+                  mono
+                />
+
+                <ReceiptField
+                  label="POLICY VERSION"
+                  value="intentfence-policy-v1"
+                  mono
+                />
+
+                <ReceiptField
+                  label="INTEGRITY HASH"
+                  value={generateReceiptHash(action)}
+                  mono
+                />
+              </div>
+            </div>
           </div>
-
-        </div>
-
-        <div>
-
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Audit Metadata
-          </p>
-
-          <div className="mt-3 grid gap-4 sm:grid-cols-2">
-
-            <ReceiptField
-              label="RECEIPT ID"
-              value={action.id}
-              mono
-            />
-
-            <ReceiptField
-              label="TIMESTAMP"
-              value={`2026-08-22 ${action.time}`}
-              mono
-            />
-
-            <ReceiptField
-              label="POLICY VERSION"
-              value="intentfence-policy-v1"
-              mono
-            />
-
-            <ReceiptField
-              label="INTEGRITY HASH"
-              value={generateReceiptHash(action)}
-              mono
-            />
-
-          </div>
-
-        </div>
-
+        </details>
       </div>
-
     </div>
   );
 }
