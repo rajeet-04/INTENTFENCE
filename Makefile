@@ -23,6 +23,7 @@ setup-frontend:
 	cd apps/dashboard && $(BUN) install --frozen-lockfile
 
 test-frontend:
+	cd apps/dashboard && $(BUN) test
 	cd apps/dashboard && $(BUN) run lint
 	cd apps/dashboard && $(BUN) run typecheck
 	cd apps/dashboard && $(BUN) run build
