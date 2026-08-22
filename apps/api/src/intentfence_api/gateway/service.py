@@ -16,7 +16,8 @@ from intentfence_contracts import (
 )
 
 from .adapters import PolicyAdapter, SemanticAdapter, StateDataFlowAdapter
-from .baseline import BaselineSecurityAdapter, classify_destination
+from .baseline import classify_destination
+from .deterministic import Phase2PolicyAdapter, Phase3StatePhase4DataFlowAdapter
 from .models import ComponentDecision, GatewayExecution, GatewayMode, SecurityEvent
 from .precedence import compose_decision
 from .tools import NormalizedToolRequest, ToolHandler
@@ -37,9 +38,8 @@ class IntentFenceGateway:
         state_dataflow_adapter: StateDataFlowAdapter | None = None,
         semantic_adapter: SemanticAdapter | None = None,
     ) -> None:
-        baseline = BaselineSecurityAdapter()
-        self.policy_adapter = policy_adapter or baseline
-        self.state_dataflow_adapter = state_dataflow_adapter or baseline
+        self.policy_adapter = policy_adapter or Phase2PolicyAdapter()
+        self.state_dataflow_adapter = state_dataflow_adapter or Phase3StatePhase4DataFlowAdapter()
         self.semantic_adapter = semantic_adapter
 
     def intercept(
