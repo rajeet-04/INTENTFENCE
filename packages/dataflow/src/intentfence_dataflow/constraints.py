@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field
 SENSITIVE_SENSITIVITIES = {Sensitivity.CONFIDENTIAL, Sensitivity.CRITICAL}
 CREDENTIAL_DATA_TYPES = {"API_KEY", "PASSWORD"}
 MESSAGING_TOOLS = {"send_message"}
+EGRESS_TOOLS = {"send_message", "http_request"}
 EXTERNAL_DESTINATION_CLASSES = {
     DestinationClass.KNOWN_EXTERNAL,
     DestinationClass.UNKNOWN_EXTERNAL,
@@ -94,6 +95,10 @@ def normalize_destination(destination: str) -> str:
     return value
 
 
+def _destination_present(destination: str | None) -> bool:
+    return bool(destination and destination.strip())
+
+
 def _purpose_tokens(text: str) -> set[str]:
     tokens = re.split(r"[^a-z0-9]+", text.lower())
     return {token for token in tokens if len(token) >= 3 and token not in STOPWORDS}
@@ -169,28 +174,13 @@ def _check_destination_class(
     destination: str | None,
     destination_class: DestinationClass | None,
 ) -> FlowVerdict | None:
-    if destination is None:
-        return None
     sensitive = [label for label in labels if label.sensitivity in SENSITIVE_SENSITIVITIES]
-    if destination_class is None:
-        if sensitive:
-            types = ", ".join(sorted({label.data_type for label in sensitive}))
-            return FlowVerdict(
-                decision=DecisionType.REQUIRE_APPROVAL,
-                reason=(
-                    f"Destination classification for {destination} is unresolved; "
-                    f"sensitive data ({types}) requires approval before egress."
-                ),
-                matched_rules=["DESTINATION_CLASS_UNRESOLVED"],
-                rule_strength=RuleStrength.REQUIRE_APPROVAL,
-                risk_score=RISK_REQUIRE_APPROVAL,
-            )
-        return None
+    display_destination = destination.strip() if _destination_present(destination) else "<unspecified>"
     if destination_class is DestinationClass.BLOCKED:
         return FlowVerdict(
             decision=DecisionType.BLOCK,
             reason=(
-                f"Destination {destination} is explicitly blocked "
+                f"Destination {display_destination} is explicitly blocked "
                 "and cannot receive any controlled data."
             ),
             matched_rules=["DESTINATION_BLOCKED"],
@@ -203,19 +193,56 @@ def _check_destination_class(
             decision=DecisionType.BLOCK,
             reason=(
                 f"Sensitive data ({types}) cannot be sent to unknown external "
-                f"destination {destination}."
+                f"destination {display_destination}."
             ),
             matched_rules=["SENSITIVE_DATA_TO_UNKNOWN_EXTERNAL"],
             rule_strength=RuleStrength.HARD_BLOCK,
             risk_score=RISK_BLOCK,
         )
+    if not _destination_present(destination):
+        return None
+    if destination_class is None and sensitive:
+        types = ", ".join(sorted({label.data_type for label in sensitive}))
+        return FlowVerdict(
+            decision=DecisionType.REQUIRE_APPROVAL,
+            reason=(
+                f"Destination classification for {destination} is unresolved; "
+                f"sensitive data ({types}) requires approval before egress."
+            ),
+            matched_rules=["DESTINATION_CLASS_UNRESOLVED"],
+            rule_strength=RuleStrength.REQUIRE_APPROVAL,
+            risk_score=RISK_REQUIRE_APPROVAL,
+        )
     return None
+
+
+def _check_missing_egress_destination(
+    labels: list[DataLabel], tool: str | None, destination: str | None
+) -> FlowVerdict | None:
+    if tool is None or tool.strip().lower() not in EGRESS_TOOLS:
+        return None
+    if _destination_present(destination):
+        return None
+    sensitive = [label for label in labels if label.sensitivity in SENSITIVE_SENSITIVITIES]
+    if not sensitive:
+        return None
+    types = ", ".join(sorted({label.data_type for label in sensitive}))
+    return FlowVerdict(
+        decision=DecisionType.REQUIRE_APPROVAL,
+        reason=(
+            f"Sensitive data ({types}) requires an explicit destination before "
+            f"{tool.strip().lower()}."
+        ),
+        matched_rules=["SENSITIVE_EGRESS_DESTINATION_MISSING"],
+        rule_strength=RuleStrength.REQUIRE_APPROVAL,
+        risk_score=RISK_REQUIRE_APPROVAL,
+    )
 
 
 def _check_allowed_destinations(
     labels: list[DataLabel], destination: str | None
 ) -> FlowVerdict | None:
-    if destination is None:
+    if not _destination_present(destination):
         return None
     normalized_destination = normalize_destination(destination)
     restricted = []
@@ -242,7 +269,7 @@ def _check_authorized_egress(
     destination: str | None,
     destination_class: DestinationClass | None,
 ) -> FlowVerdict | None:
-    if destination is None or destination_class not in EXTERNAL_DESTINATION_CLASSES:
+    if not _destination_present(destination) or destination_class not in EXTERNAL_DESTINATION_CLASSES:
         return None
     unbound = [
         label
@@ -352,6 +379,7 @@ def evaluate_flow(
     checks = [
         _check_tool_constraints(labels, tool),
         _check_destination_class(labels, destination, destination_class),
+        _check_missing_egress_destination(labels, tool, destination),
         _check_allowed_destinations(labels, destination),
         _check_authorized_egress(labels, destination, destination_class),
         _check_purpose_binding(labels, declared_purpose, purpose_context, approved_purposes),
