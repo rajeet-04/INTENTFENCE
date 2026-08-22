@@ -2,9 +2,9 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
+from intentfence_analytics import BenchmarkEvent, EventStore, GroundTruth, ScenarioType
 
 import intentfence_api.app as app_module
-from intentfence_analytics import BenchmarkEvent, EventStore, GroundTruth, ScenarioType
 
 
 def test_latest_benchmark_api_reads_the_most_recent_persisted_run(tmp_path, monkeypatch) -> None:
