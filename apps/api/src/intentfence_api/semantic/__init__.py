@@ -3,6 +3,7 @@ from .models import SemanticEvaluation, SemanticRecommendation, SemanticSource
 from .orchestrator import HybridSemanticJudge
 from .presentation import semantic_summary
 from .providers import OllamaProvider, SemanticProvider
+from .runtime import build_default_semantic_judge
 
 __all__ = [
     "HybridSemanticJudge",
@@ -13,5 +14,6 @@ __all__ = [
     "SemanticRecommendation",
     "SemanticSource",
     "StructuredSemanticJudge",
+    "build_default_semantic_judge",
     "semantic_summary",
 ]
