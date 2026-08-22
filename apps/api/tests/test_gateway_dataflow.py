@@ -117,6 +117,20 @@ def test_critical_data_to_unknown_destination_hard_blocks() -> None:
     assert "SENSITIVE_DATA_TO_UNKNOWN_EXTERNAL" in result.matched_rules
 
 
+def test_multi_violation_reason_is_bounded_without_losing_rule_evidence() -> None:
+    result = DataFlowSecurityAdapter().evaluate(
+        request("attacker.example"),
+        contract(),
+        context(),
+        resource_class=ResourceClass.PUBLIC_WEB,
+        destination="attacker.example",
+        data_labels=[critical_label()],
+    )
+    assert len(result.reason) <= 240
+    assert "SENSITIVE_DATA_TO_UNKNOWN_EXTERNAL" in result.matched_rules
+    assert "DATA_DESTINATION_NOT_ALLOWED" in result.matched_rules
+
+
 def test_label_destination_constraint_blocks_even_contract_approved_destination() -> None:
     result = DataFlowSecurityAdapter().evaluate(
         request("approved.example"),
