@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "artifact_type": "trace-commons-attestation-input",
+  "repository": {
+    "full_name": "rajeet-04/INTENTFENCE",
+    "visibility": "public",
+    "default_branch": "main"
+  },
+  "project": {
+    "name": "IntentFence",
+    "phase": "phase-1",
+    "phase_status": "complete",
+    "phase_tracking_issue": 3,
+    "phase_pull_request": 14
+  },
+  "verification": {
+    "merge_commit_sha": "27520b48a6b9cc40288b6483a2a1cb25aa0084db",
+    "verified_tree_sha": "5d4bdf32d600ec361a0e153fc6d775e2a21ee715",
+    "ci_workflow": "CI",
+    "ci_run_id": 32567140551,
+    "ci_conclusion": "success",
+    "backend_tests_passed": 16,
+    "backend_lint_passed": true,
+    "sqlite_verification_passed": true,
+    "api_health_smoke_test_passed": true,
+    "dashboard_lint_passed": true,
+    "dashboard_typecheck_passed": true,
+    "dashboard_build_passed": true
+  },
+  "trace_commons": {
+    "project_scope": "INTENTFENCE",
+    "session_ids": [],
+    "submission_id": null,
+    "attestation_id": null,
+    "trace_uploaded": false,
+    "human_upload_approval_recorded": false
+  },
+  "devfolio": {
+    "project_id": null,
+    "trace_commons_track_selected": false,
+    "jwt_attestation_added_to_devfolio": false,
+    "human_publish_approval_recorded": false,
+    "published": false
+  },
+  "security": {
+    "contains_signed_jwt": false,
+    "contains_secret": false,
+    "contains_raw_trace": false,
+    "public_repository_safe": true
+  },
+  "instructions": "Update only non-secret claims after local Trace Commons submission. Do not place a signed JWT, API token, signing key, OAuth credential, raw trace, or private session content in this file. If claims change, obtain a newly signed JWT through the official Trace Commons workflow rather than editing an existing signed JWT."
+}
