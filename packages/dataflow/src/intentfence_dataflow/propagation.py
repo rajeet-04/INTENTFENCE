@@ -100,7 +100,9 @@ def _intersect_allowed_destinations(
                 return []
             continue
         restricted.append(set(source.allowed_destinations))
-    if override:
+    if override is not None:
+        if not override:
+            return []
         restricted.append(set(override))
     if not restricted:
         return []
