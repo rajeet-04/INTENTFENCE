@@ -1,7 +1,13 @@
-from pydantic import ValidationError
 import pytest
+from intentfence_contracts import (
+    DecisionSource,
+    DecisionType,
+    DestinationClass,
+    ResourceClass,
+    Sensitivity,
+)
+from pydantic import ValidationError
 
-from intentfence_contracts import DecisionSource, DecisionType, DestinationClass, ResourceClass, Sensitivity
 from intentfence_api.gateway.models import (
     ComponentDecision,
     GatewayExecution,
