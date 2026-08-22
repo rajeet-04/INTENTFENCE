@@ -7,8 +7,9 @@ export default function Home() {
         <p className="eyebrow">IntentFence</p>
         <h1>Runtime authorization for autonomous AI agents</h1>
         <p>
-          Phases 1–4 are integrated on main: typed contracts, deterministic policy, stateful action
-          analysis, and purpose-bound data-flow checks now protect gateway actions.
+          Phases 1–5 are integrated on main: typed contracts, deterministic policy, stateful action
+          analysis, purpose-bound data flow, and production semantic authorization protect gateway
+          actions.
         </p>
       </header>
       <HealthCard />

@@ -11,20 +11,21 @@ Autonomous agents can browse untrusted content and then invoke high-impact tools
 
 ## Solution
 
-IntentFence separates reasoning from authorization. It compiles the user's objective into a strict, versioned Intent Contract and places a protected-tool gateway between agent reasoning and execution. Deterministic policy, stateful action-chain analysis, purpose-bound data flow, and semantic relevance are implemented behind typed boundaries. The `/authorize` path integrates deterministic policy and state, while the protected-tool gateway now composes the canonical Phase 2 policy, Phase 3 state, and Phase 4 data-flow engines before any optional semantic evaluation. Hard rules remain authoritative, and uncertainty fails closed to approval instead of silently executing.
+IntentFence separates reasoning from authorization. It compiles the user's objective into a strict, versioned Intent Contract and places a protected-tool gateway between agent reasoning and execution. Deterministic policy, stateful action-chain analysis, purpose-bound data flow, and semantic relevance are implemented behind typed boundaries. The `/authorize` path integrates deterministic policy and state, while the protected-tool gateway composes the canonical Phase 2 policy, Phase 3 state, Phase 4 data-flow, and Phase 5 semantic engines in production. Hard rules remain authoritative, and uncertainty fails closed to approval instead of silently executing.
 
 The current prototype includes the shared contracts, deterministic policy and classification, stateful authorization, purpose-bound data-flow controls, semantic intent evaluation, the protected-tool gateway, sanitized Action Receipts/security events, a FastAPI surface, a dashboard shell, and a controlled before/after prompt-injection demo.
 
 ## Integration milestone
 
-**Phases 1–4 are integrated on `main`** and form the current merged security baseline:
+**Phases 1–5 are integrated on `main`** and form the current merged security baseline:
 
 1. **Phase 1 — Foundation:** strict shared contracts, API boundaries, persistence primitives, and fail-closed validation.
 2. **Phase 2 — Deterministic security:** resource/destination classification, policy rules, hard blocks, approval rules, and risk aggregation.
 3. **Phase 3 — Stateful authorization:** bounded security context, action-chain analysis, accumulated risk, and intent-drift signals.
 4. **Phase 4 — Purpose-bound data flow:** provenance-aware labels, controlled propagation, destination constraints, and fail-closed egress enforcement.
+5. **Phase 5 — Production semantic authorization:** compact semantic context, strict local/hybrid evaluation, fail-closed provider handling, and deterministic-precedence preservation.
 
-The protected-tool gateway uses the canonical Phase 2 policy, Phase 3 state, and Phase 4 data-flow adapters. Phase 5 semantic evaluation and Phase 6 gateway/demo capabilities remain implemented prototype layers built on this integrated baseline.
+The protected-tool gateway uses the canonical Phase 2 policy, Phase 3 state, Phase 4 data-flow, and Phase 5 semantic adapters. Phase 6 gateway/demo capabilities remain an implemented prototype layer built on this integrated baseline.
 
 ## Submission snapshot
 
@@ -35,11 +36,11 @@ The protected-tool gateway uses the canonical Phase 2 policy, Phase 3 state, and
 | Deterministic fail-closed policy | Implemented; used by `/authorize` and gateway | `packages/policy` |
 | Stateful action-chain authorization | Implemented; used by `/authorize` and gateway | `packages/state` |
 | Purpose-bound data-flow enforcement | Implemented and integrated into the gateway | `packages/dataflow` |
-| Local/hybrid semantic intent layer | Implemented; Ollama optional | `apps/api/src/intentfence_api/semantic` |
-| Protected-tool interception and receipts | Implemented with canonical Phase 2–4 deterministic enforcement | `apps/api/src/intentfence_api/gateway` |
+| Local/hybrid semantic intent layer | Implemented and integrated into the production API gateway; Ollama optional | `apps/api/src/intentfence_api/semantic` and `apps/api/src/intentfence_api/app.py` |
+| Protected-tool interception and receipts | Implemented with canonical Phase 2–5 enforcement | `apps/api/src/intentfence_api/gateway` |
 | Golden hotel prompt-injection comparison | Implemented | `POST /demo/hotel-attack` |
 | Security dashboard | Prototype shell | `apps/dashboard` |
-| Automated verification | 233 backend tests plus lint, typecheck, and production build | `make verify` and `.github/workflows/ci.yml` |
+| Automated verification | 238 backend tests plus lint, typecheck, and production build | `make verify` and `.github/workflows/ci.yml` |
 
 Deployment is intentionally out of scope for this evaluation round; the repository runs locally and is designed to be directly reviewable.
 
@@ -75,7 +76,7 @@ Deployment is intentionally out of scope for this evaluation round; the reposito
 
 ## Phase 5 semantic intent layer
 
-Phase 5 provides:
+Phase 5 is integrated into the production gateway and provides:
 
 - strict `SemanticEvaluation` results with `ALLOW`, `BLOCK`, or `REQUIRE_APPROVAL` recommendations;
 - compact semantic context containing the active objective, authorization boundaries, action metadata, state indicators, and data labels without arbitrary full history or raw secret-bearing values;
@@ -108,7 +109,7 @@ Decision precedence is intentionally conservative:
 
 A semantic `ALLOW` cannot override a hard block or approval requirement.
 
-The default gateway now uses dedicated adapters for the canonical Phase 2 deterministic policy and the composed Phase 3 state plus Phase 4 data-flow engines. Controlled data references resolve through the Phase 4 registry and fail closed when unknown or duplicated. Semantic evaluation is invoked only when every deterministic layer returns `ALLOW`. `BaselineSecurityAdapter` remains as a focused compatibility/test fixture rather than the default enforcement path.
+The production `/gateway/intercept` path constructed in `intentfence_api.app` uses dedicated adapters for the canonical Phase 2 deterministic policy, the composed Phase 3 state plus Phase 4 data-flow engines, and the Phase 5 local/hybrid semantic runtime. Controlled data references resolve through the Phase 4 registry and fail closed when unknown or duplicated. Semantic evaluation is invoked only when every deterministic layer returns `ALLOW`; other `IntentFenceGateway` instances may inject or omit a semantic adapter for controlled demos and tests. `BaselineSecurityAdapter` remains as a focused compatibility/test fixture rather than the production enforcement path.
 
 ### Golden hotel attack
 
@@ -268,7 +269,7 @@ Run the same gates used by CI:
 make verify
 ```
 
-Verified on 2026-08-22: 233 backend tests passing; backend lint, SQLite initialization, API health smoke, dashboard lint, TypeScript checks, and the optimized Next.js production build complete successfully.
+Verified on 2026-08-22: 238 backend tests passing; backend lint, SQLite initialization, API health smoke, dashboard lint, TypeScript checks, and the optimized Next.js production build complete successfully.
 
 Phase 6 focused tests:
 
