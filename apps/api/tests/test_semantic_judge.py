@@ -4,7 +4,6 @@ from intentfence_contracts import (
     IntentContract,
     RiskTolerance,
     SecurityContext,
-    SemanticSource as ContractSemanticSource,
     SourceContext,
     ToolRequest,
 )
