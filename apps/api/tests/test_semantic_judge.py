@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 
+from intentfence_api.semantic.judge import StructuredSemanticJudge
 from intentfence_contracts import (
     IntentContract,
     RiskTolerance,
@@ -7,8 +8,6 @@ from intentfence_contracts import (
     SourceContext,
     ToolRequest,
 )
-
-from intentfence_api.semantic.judge import StructuredSemanticJudge
 from intentfence_api.semantic.models import SemanticRecommendation, SemanticSource
 
 
