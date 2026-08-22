@@ -39,6 +39,7 @@ def _inputs():
         approval_required_actions=["send_message"],
         risk_tolerance=RiskTolerance.MEDIUM,
         issued_at=now,
+        contract_version=1,
     )
     request = ToolRequest(
         request_id="req-1",
