@@ -1,10 +1,11 @@
 import pytest
+from pydantic import ValidationError
+
 from intentfence_api.semantic.models import (
     SemanticEvaluation,
     SemanticRecommendation,
     SemanticSource,
 )
-from pydantic import ValidationError
 
 
 def test_semantic_evaluation_accepts_operator_facing_result() -> None:
