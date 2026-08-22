@@ -3,7 +3,9 @@
 from .constraints import FlowVerdict, evaluate_flow, normalize_destination
 from .propagation import (
     ConflictingDestinationConstraintsError,
+    ConflictingPurposeError,
     EmptySourceError,
+    MetadataRewriteError,
     PropagationError,
     SensitivityDowngradeError,
     TransformationType,
@@ -16,10 +18,12 @@ from .registry import DataLabelRegistry, DuplicateDataLabelError, UnknownDataRef
 
 __all__ = [
     "ConflictingDestinationConstraintsError",
+    "ConflictingPurposeError",
     "DataLabelRegistry",
     "DuplicateDataLabelError",
     "EmptySourceError",
     "FlowVerdict",
+    "MetadataRewriteError",
     "PropagationError",
     "SensitivityDowngradeError",
     "TransformationType",

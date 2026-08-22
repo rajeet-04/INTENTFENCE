@@ -12,6 +12,10 @@ SENSITIVITY_RANK: dict[Sensitivity, int] = {
     Sensitivity.CRITICAL: 3,
 }
 
+EGRESS_RESTRICTED_SENSITIVITIES = frozenset({Sensitivity.CONFIDENTIAL, Sensitivity.CRITICAL})
+
+METADATA_OVERRIDE_FIELDS = ("provenance", "purpose", "owner", "source", "source_class")
+
 
 class PropagationError(Exception):
     pass
@@ -47,6 +51,23 @@ class ConflictingDestinationConstraintsError(PropagationError):
         )
 
 
+class MetadataRewriteError(PropagationError):
+    def __init__(self, fields: Sequence[str]) -> None:
+        self.fields = list(fields)
+        super().__init__(
+            "Controlled transformations cannot rewrite security metadata: " + ", ".join(self.fields)
+        )
+
+
+class ConflictingPurposeError(PropagationError):
+    def __init__(self, purposes: set[str]) -> None:
+        self.purposes = sorted(purposes)
+        super().__init__(
+            "Sensitive source labels carry conflicting purposes and require explicit "
+            f"authorized rebinding: {', '.join(self.purposes)}"
+        )
+
+
 class TransformationType(StrEnum):
     EXTRACT_VALUE = "extract_value"
     ENCODE_DATA = "encode_data"
@@ -72,17 +93,54 @@ def _dedupe(items: Sequence[str]) -> list[str]:
 def _intersect_allowed_destinations(
     sources: Sequence[DataLabel], override: list[str] | None
 ) -> list[str]:
-    restricted = [source.allowed_destinations for source in sources if source.allowed_destinations]
+    restricted: list[set[str]] = []
+    for source in sources:
+        if not source.allowed_destinations:
+            if source.sensitivity in EGRESS_RESTRICTED_SENSITIVITIES:
+                return []
+            continue
+        restricted.append(set(source.allowed_destinations))
     if override:
-        restricted.append(override)
+        restricted.append(set(override))
     if not restricted:
         return []
     intersection = set(restricted[0])
     for other in restricted[1:]:
-        intersection &= set(other)
+        intersection &= other
     if not intersection:
         raise ConflictingDestinationConstraintsError()
-    return [dest for dest in restricted[0] if dest in intersection]
+    return [dest for dest in sorted(intersection)]
+
+
+def _reject_metadata_overrides(
+    provenance: str | None,
+    purpose: str | None,
+    owner: str | None,
+    source: str | None,
+    source_class: ResourceClass | None,
+) -> None:
+    attempted = {
+        "provenance": provenance,
+        "purpose": purpose,
+        "owner": owner,
+        "source": source,
+        "source_class": source_class,
+    }
+    rewritten = sorted(field for field, value in attempted.items() if value is not None)
+    if rewritten:
+        raise MetadataRewriteError(rewritten)
+
+
+def _resolve_derived_purpose(sources: Sequence[DataLabel]) -> str:
+    sensitive_sources = [
+        label for label in sources if label.sensitivity in EGRESS_RESTRICTED_SENSITIVITIES
+    ]
+    if not sensitive_sources:
+        return sources[0].purpose
+    purposes = {label.purpose for label in sensitive_sources}
+    if len(purposes) > 1:
+        raise ConflictingPurposeError(purposes)
+    return next(iter(purposes))
 
 
 def propagate(
@@ -103,6 +161,7 @@ def propagate(
     coerced_operation = _coerce_operation(operation)
     if not sources:
         raise EmptySourceError(coerced_operation.value)
+    _reject_metadata_overrides(provenance, purpose, owner, source, source_class)
     highest = max(sources, key=lambda label: SENSITIVITY_RANK[label.sensitivity])
     computed_sensitivity = highest.sensitivity
     if (
@@ -115,12 +174,12 @@ def propagate(
     return DataLabel(
         data_id=data_id,
         data_type=data_type,
-        source=source if source is not None else highest.source,
-        source_class=source_class if source_class is not None else highest.source_class,
-        provenance=provenance if provenance is not None else highest.provenance,
+        source=highest.source,
+        source_class=highest.source_class,
+        provenance=highest.provenance,
         sensitivity=final_sensitivity,
-        purpose=purpose if purpose is not None else sources[0].purpose,
-        owner=owner if owner is not None else highest.owner,
+        purpose=_resolve_derived_purpose(sources),
+        owner=highest.owner,
         allowed_destinations=_intersect_allowed_destinations(sources, allowed_destinations),
         derived_from=lineage,
         created_at=created_at if created_at is not None else datetime.now(UTC),

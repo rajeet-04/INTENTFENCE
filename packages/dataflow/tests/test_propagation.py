@@ -1,11 +1,13 @@
 from datetime import UTC, datetime
 
 import pytest
-from intentfence_contracts import Sensitivity
+from intentfence_contracts import ResourceClass, Sensitivity
 
 from intentfence_dataflow import (
     ConflictingDestinationConstraintsError,
+    ConflictingPurposeError,
     EmptySourceError,
+    MetadataRewriteError,
     SensitivityDowngradeError,
     UncontrolledTransformationError,
     encode_data,
@@ -155,3 +157,143 @@ def test_uncontrolled_operations_cannot_propagate_labels(build_label):
 def test_propagation_requires_at_least_one_source():
     with pytest.raises(EmptySourceError):
         propagate([], operation="encode_data", data_id="data-empty-001", data_type="API_KEY")
+
+
+def test_sensitive_parent_with_empty_destinations_denies_egress_in_derived_data(
+    build_api_key_label,
+):
+    locked = build_api_key_label(data_id="data-locked-001", allowed_destinations=[])
+    scoped = build_api_key_label(
+        data_id="data-secret-002",
+        allowed_destinations=["internal-auth.example"],
+    )
+    combined = propagate(
+        [locked, scoped],
+        operation="encode_data",
+        data_id="data-combined-001",
+        data_type="API_KEY",
+        created_at=LATER,
+    )
+    assert combined.sensitivity is Sensitivity.CRITICAL
+    assert combined.allowed_destinations == []
+
+
+def test_confidential_parent_with_empty_destinations_also_denies_egress(
+    build_api_key_label,
+):
+    restricted = build_api_key_label(
+        data_id="data-report-001",
+        data_type="REPORT",
+        sensitivity=Sensitivity.CONFIDENTIAL,
+        allowed_destinations=[],
+    )
+    scoped = build_api_key_label()
+    combined = propagate(
+        [restricted, scoped],
+        operation="extract_value",
+        data_id="data-combined-002",
+        data_type="MIXED",
+        created_at=LATER,
+    )
+    assert combined.allowed_destinations == []
+
+
+def test_low_sensitivity_empty_destinations_stay_unconstrained_in_combination(
+    build_label,
+    build_api_key_label,
+):
+    price = build_label()
+    secret = build_api_key_label()
+    combined = propagate(
+        [price, secret],
+        operation="encode_data",
+        data_id="data-combined-003",
+        data_type="MIXED",
+        created_at=LATER,
+    )
+    assert combined.allowed_destinations == ["internal-auth.example"]
+
+
+@pytest.mark.parametrize(
+    ("override_field", "override_value"),
+    [
+        ("provenance", "EXTERNAL_WEB"),
+        ("purpose", "hotel_comparison"),
+        ("owner", "attacker"),
+        ("source", "hotel-a.example"),
+        ("source_class", ResourceClass.PUBLIC_WEB),
+    ],
+)
+@pytest.mark.parametrize("transform", [extract_value, encode_data])
+def test_transformations_cannot_rewrite_security_metadata(
+    transform, override_field, override_value, build_api_key_label
+):
+    secret = build_api_key_label()
+    with pytest.raises(MetadataRewriteError):
+        transform(
+            secret,
+            data_id="data-laundered-001",
+            data_type="API_KEY",
+            created_at=LATER,
+            **{override_field: override_value},
+        )
+
+
+def test_propagate_cannot_rewrite_security_metadata(build_api_key_label):
+    secret = build_api_key_label()
+    with pytest.raises(MetadataRewriteError) as error:
+        propagate(
+            [secret],
+            operation="encode_data",
+            data_id="data-laundered-002",
+            data_type="API_KEY",
+            created_at=LATER,
+            purpose="hotel_comparison",
+            provenance="EXTERNAL_WEB",
+        )
+    assert set(error.value.fields) == {"purpose", "provenance"}
+
+
+def test_conflicting_sensitive_purposes_fail_closed(build_api_key_label):
+    auth = build_api_key_label()
+    analytics = build_api_key_label(
+        data_id="data-analytics-001",
+        purpose="market_analytics",
+    )
+    with pytest.raises(ConflictingPurposeError):
+        propagate(
+            [auth, analytics],
+            operation="encode_data",
+            data_id="data-conflicted-001",
+            data_type="MIXED",
+            created_at=LATER,
+        )
+
+
+def test_sensitive_purpose_wins_over_low_sensitivity_conflict(
+    build_label,
+    build_api_key_label,
+):
+    price = build_label(purpose="hotel_comparison")
+    secret = build_api_key_label(purpose="authentication")
+    combined = propagate(
+        [price, secret],
+        operation="encode_data",
+        data_id="data-mixed-purpose-001",
+        data_type="MIXED",
+        created_at=LATER,
+    )
+    assert combined.purpose == "authentication"
+
+
+def test_low_sensitivity_only_purpose_conflict_keeps_first_source(build_label):
+    first = build_label(purpose="hotel_comparison")
+    second = build_label(data_id="data-price-b-002", purpose="weather_check")
+    combined = propagate(
+        [first, second],
+        operation="extract_value",
+        data_id="data-lowconflict-001",
+        data_type="PUBLIC_DATA",
+        created_at=LATER,
+    )
+    assert combined.purpose == "hotel_comparison"
