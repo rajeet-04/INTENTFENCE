@@ -175,7 +175,9 @@ def _check_destination_class(
     destination_class: DestinationClass | None,
 ) -> FlowVerdict | None:
     sensitive = [label for label in labels if label.sensitivity in SENSITIVE_SENSITIVITIES]
-    display_destination = destination.strip() if _destination_present(destination) else "<unspecified>"
+    display_destination = (
+        destination.strip() if _destination_present(destination) else "<unspecified>"
+    )
     if destination_class is DestinationClass.BLOCKED:
         return FlowVerdict(
             decision=DecisionType.BLOCK,
@@ -269,7 +271,10 @@ def _check_authorized_egress(
     destination: str | None,
     destination_class: DestinationClass | None,
 ) -> FlowVerdict | None:
-    if not _destination_present(destination) or destination_class not in EXTERNAL_DESTINATION_CLASSES:
+    if (
+        not _destination_present(destination)
+        or destination_class not in EXTERNAL_DESTINATION_CLASSES
+    ):
         return None
     unbound = [
         label
