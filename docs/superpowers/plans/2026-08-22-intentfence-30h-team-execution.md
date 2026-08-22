@@ -57,7 +57,7 @@ Required outputs:
 - Security regression tests
 - Adversarial bypass attempts against the final gateway
 
-### @Anwesh09Git: Data provenance, data-flow controls, benchmark instrumentation
+### @DeepaliSingh10: Data provenance, data-flow controls, benchmark instrumentation
 
 Primary ownership:
 - Phase 4 DataLabel, provenance and lightweight flow propagation
@@ -70,7 +70,7 @@ Required outputs:
 - KPI calculations and reproducible benchmark runs
 - Data-flow attack scenarios
 
-### @DeepaliSingh10: Security-console UX, decision explainability, competition demo
+### @Anwesh09Git: Security-console UX, decision explainability, competition demo
 
 Primary ownership:
 - Phase 7 security console
@@ -94,7 +94,7 @@ Required outputs:
 
 **Owner:** @rajeet-04
 
-**Reviewers:** @ayushman2006-bit, @Anwesh09Git, @DeepaliSingh10
+**Reviewers:** @ayushman2006-bit, @DeepaliSingh10, @Anwesh09Git
 
 **Branch:** `phase/01-foundation`
 
@@ -121,7 +121,7 @@ Required outputs:
 - Backend and frontend checks pass.
 
 ### Handoff
-Ayushman consumes policy-compatible typed inputs. Anwesh consumes `DataLabel` and `SecurityContext`. Deepali consumes API response shapes and receipt fields.
+Ayushman consumes policy-compatible typed inputs. Deepali consumes `DataLabel` and `SecurityContext`. Anwesh consumes API response shapes and receipt fields.
 
 ---
 
@@ -133,7 +133,7 @@ Ayushman consumes policy-compatible typed inputs. Anwesh consumes `DataLabel` an
 
 **Reviewer:** @rajeet-04
 
-**Support:** @Anwesh09Git
+**Support:** @DeepaliSingh10
 
 **Branch:** `phase/02-policy`
 
@@ -169,7 +169,7 @@ Exports deterministic `PolicyResult` with rule ID, rule strength, decision and r
 
 **Owner:** @ayushman2006-bit
 
-**Reviewer:** @Anwesh09Git
+**Reviewer:** @DeepaliSingh10
 
 **Integration reviewer:** @rajeet-04
 
@@ -201,7 +201,7 @@ The chain can block a final action even when an individual intermediate action i
 
 **Time:** H5-H11
 
-**Owner:** @Anwesh09Git
+**Owner:** @DeepaliSingh10
 
 **Reviewer:** @ayushman2006-bit
 
@@ -241,7 +241,7 @@ The chain can block a final action even when an individual intermediate action i
 
 **Reviewer:** @ayushman2006-bit
 
-**Support:** @Anwesh09Git
+**Support:** @DeepaliSingh10
 
 **Branch:** `phase/05-semantic`
 
@@ -278,9 +278,9 @@ Known unrelated credential action receives low intent relevance; legitimate task
 
 **Owner:** @rajeet-04
 
-**Reviewers:** @ayushman2006-bit, @Anwesh09Git
+**Reviewers:** @ayushman2006-bit, @DeepaliSingh10
 
-**UX observer:** @DeepaliSingh10
+**UX observer:** @Anwesh09Git
 
 **Branch:** `phase/06-gateway`
 
@@ -318,11 +318,11 @@ This is the first full end-to-end competition checkpoint.
 
 **Time:** H12-H20
 
-**Owner:** @DeepaliSingh10
+**Owner:** @Anwesh09Git
 
 **Backend contract reviewer:** @rajeet-04
 
-**Security reviewers:** @ayushman2006-bit, @Anwesh09Git
+**Security reviewers:** @ayushman2006-bit, @DeepaliSingh10
 
 **Branch:** `phase/07-console`
 
@@ -370,9 +370,9 @@ A judge unfamiliar with agent security should be able to answer within 10 second
 
 **Time:** H16-H24
 
-**Owner:** @Anwesh09Git
+**Owner:** @DeepaliSingh10
 
-**Analytics visualization:** @DeepaliSingh10
+**Analytics visualization:** @Anwesh09Git
 
 **Security validation:** @ayushman2006-bit
 
@@ -436,11 +436,11 @@ Every number shown in the UI must be reproducible from benchmark result records.
 
 **Owner:** @ayushman2006-bit
 
-**Data-flow reviewer:** @Anwesh09Git
+**Data-flow reviewer:** @DeepaliSingh10
 
 **Integration reviewer:** @rajeet-04
 
-**Demo observer:** @DeepaliSingh10
+**Demo observer:** @Anwesh09Git
 
 **Branch:** `phase/09-redteam`
 
@@ -466,13 +466,13 @@ No new attack discovered in this phase may silently execute a protected high-ris
 
 **Time:** H25-H30
 
-**Demo/presentation owner:** @DeepaliSingh10
+**Demo/presentation owner:** @Anwesh09Git
 
 **Release owner:** @rajeet-04
 
 **Security sign-off:** @ayushman2006-bit
 
-**Benchmark sign-off:** @Anwesh09Git
+**Benchmark sign-off:** @DeepaliSingh10
 
 **Branch:** `phase/10-release`
 
