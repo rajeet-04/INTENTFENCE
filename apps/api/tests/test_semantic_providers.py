@@ -89,3 +89,19 @@ def test_ollama_provider_rejects_non_json_model_content() -> None:
 
     with pytest.raises(ValueError):
         provider.evaluate_json({"intent": {"objective": "Compare hotels"}})
+
+
+def test_ollama_provider_can_use_intentfence_environment_settings(monkeypatch) -> None:
+    from intentfence_api.config import Settings
+
+    monkeypatch.setenv("INTENTFENCE_SEMANTIC_OLLAMA_BASE_URL", "http://ollama.env:11434")
+    monkeypatch.setenv("INTENTFENCE_SEMANTIC_OLLAMA_MODEL", "qwen-env:7b")
+    monkeypatch.setenv("INTENTFENCE_SEMANTIC_TIMEOUT_SECONDS", "3.5")
+
+    settings = Settings(_env_file=None)
+    provider = _provider_cls().from_settings(settings)
+
+    assert provider.base_url == "http://ollama.env:11434"
+    assert provider.model == "qwen-env:7b"
+    assert provider.timeout_seconds == 3.5
+    provider.close()
