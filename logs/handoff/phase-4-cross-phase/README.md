@@ -1,6 +1,6 @@
 # Phase 4 Cross-Phase Hard Pass
 
-Phase 4 was originally merged through PR #18. This verification does not replay that historical branch. It revalidates Phase 4 on current `main` after the hardened Phase 2 and Phase 3 integrations.
+Phase 4 was originally merged through PR #18. This verification does not replay that historical branch. It revalidates Phase 4 after the hardened Phase 2 and Phase 3 integrations.
 
 ## Root cause found
 
@@ -33,9 +33,11 @@ The fix leaves `packages/dataflow` unchanged and wires the existing engines into
 
 Existing gateway demo tests additionally prove that the injected secret read/exfiltration path remains blocked while the legitimate hotel workflow still completes.
 
-## CI evidence before final evidence cleanup
+## CI evidence
 
-CI run #338 on head `68670752c24d5a14396ca60a4fd451648ceb21c5` passed:
+The RED branch first produced **5 failed, 228 passed**, proving the integration gap.
+
+After the deterministic gateway fix, CI run #338 passed with:
 
 - Ruff: PASS
 - Backend pytest: **233 passed, 1 deprecation warning**
@@ -45,4 +47,10 @@ CI run #338 on head `68670752c24d5a14396ca60a4fd451648ceb21c5` passed:
 - Dashboard TypeScript typecheck: PASS
 - Dashboard production build: PASS
 
-The final evidence/cleanup commit changes only documentation and temporary marker removal. A fresh full CI run on the exact final merge candidate is required before merge.
+Final PR #23 candidate CI run #348 also passed the complete backend and dashboard gates on head `2fd1e329122ebebed2601684d8dfee5ad20d43dc`.
+
+## Concurrent-main revalidation
+
+Immediately before PR #23 merged, `main` advanced through evaluation/tooling commit `38f29109fa5b88b194f8ff1520b2d1749199eb46`. That commit changed CI, Makefile, README, and dashboard dependency/configuration surfaces, so the merge commit tree was not byte-identical to the earlier PR merge candidate even though the Phase 2–4 runtime files were unchanged.
+
+The post-merge revalidation branch starts from the actual combined `main`, corrects the stale README statements that still described the Phase 2–4 gateway adapters as pending, and introduces no runtime code changes. Its full pull-request CI is therefore the required integration gate for the actual combined repository state, including the new uv/Bun evaluation tooling and all 233 backend tests.
