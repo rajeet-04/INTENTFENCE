@@ -52,7 +52,12 @@ def context(**updates: object) -> SecurityContext:
     return SecurityContext(**values)
 
 
-def request(tool: str, *, source: SourceContext = SourceContext.USER, data_refs=None) -> ToolRequest:
+def request(
+    tool: str,
+    *,
+    source: SourceContext = SourceContext.USER,
+    data_refs=None,
+) -> ToolRequest:
     return ToolRequest(
         request_id=f"req-{tool}",
         session_id="hotel-demo",
