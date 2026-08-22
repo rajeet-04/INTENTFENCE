@@ -1,9 +1,12 @@
 import json
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 import httpx
 
 from .models import SemanticSource
+
+if TYPE_CHECKING:
+    from intentfence_api.config import Settings
 
 _SYSTEM_PROMPT = (
     "You are a semantic relevance evaluator for an AI-agent security gateway. "
@@ -36,6 +39,20 @@ class OllamaProvider:
         self.model = model
         self.timeout_seconds = timeout_seconds
         self._client = httpx.Client(timeout=timeout_seconds, transport=transport)
+
+    @classmethod
+    def from_settings(
+        cls,
+        settings: "Settings",
+        *,
+        transport: httpx.BaseTransport | None = None,
+    ) -> "OllamaProvider":
+        return cls(
+            base_url=settings.semantic_ollama_base_url,
+            model=settings.semantic_ollama_model,
+            timeout_seconds=settings.semantic_timeout_seconds,
+            transport=transport,
+        )
 
     def evaluate_json(self, context: dict[str, object]) -> dict[str, object]:
         try:
