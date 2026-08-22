@@ -40,17 +40,7 @@ def secure_gateway_payload(*, tool: str = "browse_web") -> dict:
     }
 
 
-def test_public_gateway_does_not_accept_unprotected_mode(client) -> None:
-    payload = secure_gateway_payload()
-    payload["mode"] = "DISABLED"
-
-    response = client.post("/gateway/intercept", json=payload)
-
-    assert response.status_code == 422
-
-
-def test_public_gateway_does_not_accept_caller_security_facts(client) -> None:
-    payload = secure_gateway_payload()
+def add_legacy_security_facts(payload: dict) -> dict:
     now = datetime.now(UTC)
     payload["security_context"] = {
         "session_id": "proof-session",
@@ -67,6 +57,20 @@ def test_public_gateway_does_not_accept_caller_security_facts(client) -> None:
         "last_updated_at": now.isoformat(),
     }
     payload["data_labels"] = []
+    return payload
+
+
+def test_public_gateway_does_not_accept_unprotected_mode(client) -> None:
+    payload = add_legacy_security_facts(secure_gateway_payload())
+    payload["mode"] = "DISABLED"
+
+    response = client.post("/gateway/intercept", json=payload)
+
+    assert response.status_code == 422
+
+
+def test_public_gateway_does_not_accept_caller_security_facts(client) -> None:
+    payload = add_legacy_security_facts(secure_gateway_payload())
 
     response = client.post("/gateway/intercept", json=payload)
 
