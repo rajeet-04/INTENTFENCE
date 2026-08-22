@@ -45,6 +45,7 @@ def test_security_event_contains_metadata_not_raw_payload() -> None:
         session_id="session-1",
         request_id="req-1",
         intent_id="intent-1",
+        contract_version=1,
         gateway_mode=GatewayMode.ENABLED,
         tool="http_request",
         resource_class=ResourceClass.SECRET,
@@ -54,6 +55,7 @@ def test_security_event_contains_metadata_not_raw_payload() -> None:
         matched_rules=["CRITICAL_DATA_UNKNOWN_DESTINATION"],
         semantic_relevance=None,
         semantic_confidence=None,
+        accumulated_risk=0.75,
         risk_score=1.0,
         final_decision=DecisionType.BLOCK,
         decision_source=DecisionSource.POLICY,
@@ -62,6 +64,8 @@ def test_security_event_contains_metadata_not_raw_payload() -> None:
         reason="Blocked before execution.",
     )
     dumped = event.model_dump()
+    assert dumped["contract_version"] == 1
+    assert dumped["accumulated_risk"] == 0.75
     assert "payload" not in dumped
     assert "arguments" not in dumped
     assert "raw_content" not in dumped
@@ -77,6 +81,7 @@ def test_gateway_execution_requires_receipt_event_and_execution_state() -> None:
         session_id="session-1",
         request_id="req-2",
         intent_id="intent-1",
+        contract_version=2,
         gateway_mode=GatewayMode.ENABLED,
         tool="browse_web",
         resource_class=ResourceClass.PUBLIC_WEB,
@@ -86,6 +91,7 @@ def test_gateway_execution_requires_receipt_event_and_execution_state() -> None:
         matched_rules=[],
         semantic_relevance=None,
         semantic_confidence=None,
+        accumulated_risk=0.05,
         risk_score=0.1,
         final_decision=DecisionType.ALLOW,
         decision_source=DecisionSource.POLICY,
