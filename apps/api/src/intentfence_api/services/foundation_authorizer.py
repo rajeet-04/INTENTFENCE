@@ -65,7 +65,9 @@ def authorize_foundation(request: AuthorizeRequest, now: datetime | None = None)
 
     return _decision(
         decision=DecisionType.REQUIRE_APPROVAL,
-        reason="Phase 1 establishes the authorization boundary but production policy is not active.",
+        reason=(
+            "Phase 1 establishes the authorization boundary but production policy is not active."
+        ),
         risk_score=max(0.5, context.accumulated_risk),
         rule_id="FOUNDATION_POLICY_NOT_ACTIVE",
         requires_approval=True,
