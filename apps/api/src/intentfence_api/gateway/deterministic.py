@@ -22,7 +22,7 @@ from intentfence_state import evaluate_stateful_policy
 
 from .models import ComponentDecision
 
-DEFAULT_WORKSPACE_ROOTS = ("/workspace",)
+DEFAULT_WORKSPACE_ROOTS = ("workspace", "/workspace")
 _DECISION_RANK = {
     DecisionType.ALLOW: 0,
     DecisionType.REQUIRE_APPROVAL: 1,
@@ -133,17 +133,22 @@ class Phase3StatePhase4DataFlowAdapter:
             static_rules=(),
             config=self.config,
         )
-        flow_result = evaluate_flow(
-            resolved_labels,
-            tool=request.tool,
-            destination=destination,
-            destination_class=classify_destination(
+        destination_class = (
+            classify_destination(
                 destination,
                 allowed_destinations=intent_contract.allowed_destinations,
                 blocked_destinations=self.config.blocked_destinations,
                 trusted_destinations=self.config.trusted_destinations,
                 known_external_domains=self.config.known_external_domains,
-            ),
+            )
+            if destination is not None
+            else None
+        )
+        flow_result = evaluate_flow(
+            resolved_labels,
+            tool=request.tool,
+            destination=destination,
+            destination_class=destination_class,
             declared_purpose=intent_contract.objective,
         )
 
