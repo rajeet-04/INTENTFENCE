@@ -35,6 +35,6 @@ jobs:
       - name: Lint backend
         run: python -m ruff check packages/contracts apps/api
       - name: Contract tests
-        run: python -m pytest packages/contracts/tests/test_models.py -q
+        run: python -m pytest packages/contracts/tests -q
       - name: API tests
-        run: python -m pytest apps/api/tests/test_app.py -q
+        run: python -m pytest apps/api/tests -q
