@@ -33,7 +33,7 @@ app.add_middleware(
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "service":"intentfence-api"}
+    return {"status": "ok", "service": "intentfence-api"}
 
 
 @app.post("/authorize", response_model=Decision)
