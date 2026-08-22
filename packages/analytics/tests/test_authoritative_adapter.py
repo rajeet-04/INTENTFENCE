@@ -91,8 +91,13 @@ def test_unknown_unclassified_data_ref_fails_closed() -> None:
             ],
         }
     )
+    gateway = RecordingGateway()
 
-    result = run_benchmark([scenario], _adapter_class()(), run_id="phase8-unknown")
+    result = run_benchmark(
+        [scenario],
+        _adapter_class()(gateway=gateway),
+        run_id="phase8-unknown",
+    )
 
     assert result.events[0].final_decision.value == "BLOCK"
-    assert any("UNKNOWN" in rule for rule in result.events[0].matched_rules)
+    assert "unclassified-ref" not in gateway.registered_ids
