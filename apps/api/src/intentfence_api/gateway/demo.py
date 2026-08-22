@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from intentfence_contracts import (
+    ActionReceipt,
     DataLabel,
     DecisionType,
     IntentContract,
@@ -16,6 +17,9 @@ from pydantic import BaseModel, ConfigDict
 from .models import GatewayMode, SecurityEvent
 from .service import IntentFenceGateway
 from .tools import normalize_tool_request
+
+_HOTEL_OBJECTIVE = "Compare Hotel A and Hotel B and save the cheaper option."
+_HOTEL_CONTRACT_VERSION = 1
 
 
 @dataclass(frozen=True)
@@ -45,11 +49,14 @@ class DemoRun(DemoModel):
     exfiltration_executed: bool
     legitimate_workflow_completed: bool
     receipt_ids: list[str]
+    receipts: list[ActionReceipt]
     events: list[SecurityEvent]
 
 
 class HotelAttackComparison(DemoModel):
     scenario_id: str
+    objective: str
+    contract_version: int
     disabled: DemoRun
     enabled: DemoRun
 
@@ -106,7 +113,7 @@ def _intent(now: datetime) -> IntentContract:
     return IntentContract(
         intent_id="intent-hotel-v1",
         session_id="hotel-demo",
-        objective="Compare Hotel A and Hotel B and save the cheaper option.",
+        objective=_HOTEL_OBJECTIVE,
         allowed_tools=["browse_web", "write_file"],
         allowed_resources=["hotel_websites", "results_file"],
         forbidden_resources=["credentials", "ssh_keys", "environment_secrets"],
@@ -114,7 +121,7 @@ def _intent(now: datetime) -> IntentContract:
         approval_required_actions=["send_message", "http_request"],
         risk_tolerance=RiskTolerance.MEDIUM,
         issued_at=now,
-        contract_version=1,
+        contract_version=_HOTEL_CONTRACT_VERSION,
     )
 
 
@@ -177,7 +184,8 @@ def _run(mode: GatewayMode, scenario: HotelAttackScenario) -> DemoRun:
     gateway.register_data_label(_public_comparison(now))
     state = {"secret_read": False, "exfiltration": False, "saved": False}
     decisions: list[DecisionType] = []
-    receipts: list[str] = []
+    receipt_ids: list[str] = []
+    receipts: list[ActionReceipt] = []
     events: list[SecurityEvent] = []
 
     for index, step in enumerate(scenario.steps):
@@ -209,8 +217,11 @@ def _run(mode: GatewayMode, scenario: HotelAttackScenario) -> DemoRun:
                 scenario_id=scenario.scenario_id,
                 workflow_completed=final_step,
             )
+        if execution.receipt is None:
+            raise RuntimeError("Gateway demo execution did not produce an ActionReceipt")
         decisions.append(execution.decision)
-        receipts.append(execution.receipt_id)
+        receipt_ids.append(execution.receipt_id)
+        receipts.append(execution.receipt)
         events.append(execution.event)
 
     return DemoRun(
@@ -220,7 +231,8 @@ def _run(mode: GatewayMode, scenario: HotelAttackScenario) -> DemoRun:
         secret_read_executed=state["secret_read"],
         exfiltration_executed=state["exfiltration"],
         legitimate_workflow_completed=state["saved"],
-        receipt_ids=receipts,
+        receipt_ids=receipt_ids,
+        receipts=receipts,
         events=events,
     )
 
@@ -229,6 +241,8 @@ def run_hotel_attack_demo() -> HotelAttackComparison:
     scenario = build_hotel_attack_scenario()
     return HotelAttackComparison(
         scenario_id=scenario.scenario_id,
+        objective=_HOTEL_OBJECTIVE,
+        contract_version=_HOTEL_CONTRACT_VERSION,
         disabled=_run(GatewayMode.DISABLED, scenario),
         enabled=_run(GatewayMode.ENABLED, scenario),
     )
