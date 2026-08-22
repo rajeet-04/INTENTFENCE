@@ -12,7 +12,8 @@ Primary identifiers:
 - `scenario_id`: benchmark or demo scenario identifier when present.
 - `session_id`: agent session.
 - `request_id`: normalized tool request.
-- `intent_id`: Intent Contract version that governed the request.
+- `intent_id`: Intent Contract identifier that governed the request.
+- `contract_version`: explicit temporal Intent Contract version.
 
 Decision dimensions:
 
@@ -25,7 +26,8 @@ Decision dimensions:
 - `matched_rules`: deterministic/state/semantic reason codes used in the decision.
 - `semantic_relevance`: optional Phase 5 semantic relevance score.
 - `semantic_confidence`: optional Phase 5 semantic confidence.
-- `risk_score`: final normalized risk score in `[0, 1]`.
+- `accumulated_risk`: security-state risk immediately before the request decision.
+- `risk_score`: normalized risk assigned to the final request decision.
 - `final_decision`: `ALLOW`, `BLOCK`, or `REQUIRE_APPROVAL`.
 - `decision_source`: policy/state/semantic source that determined the final outcome.
 - `latency_ms`: measured gateway authorization plus used semantic latency.
@@ -90,6 +92,8 @@ Target: **< 10%**.
 - **Action-chain block count**: blocks whose matched rule identifies sequence or accumulated-state enforcement.
 - **Block count by rule ID**: explode `matched_rules`, count blocked events by rule.
 - **Mutated-attack blocking rate**: blocked malicious actions in mutated-attack scenarios / all reviewed malicious actions in mutated-attack scenarios.
+- **Risk accumulation delta**: compare `accumulated_risk` across successive events in the same session.
+- **Intent-version decision shift**: compare decisions for equivalent actions across `contract_version` changes.
 
 ## Guardrails
 
@@ -110,4 +114,4 @@ The disabled run is a controlled vulnerability demonstration, not a benchmark sa
 
 ## Data handling rule
 
-Analytics records may contain identifiers and security metadata, but never raw secret values, raw HTTP bodies, raw message bodies, full file contents, full external pages, or model hidden reasoning. Sensitive content is represented through `data_refs`, sensitivity classes, provenance, destination classes, and matched rules.
+Analytics records may contain identifiers and security metadata, but never raw secret values, raw HTTP bodies, raw message bodies, full file contents, full external pages, or model hidden reasoning. Sensitive content is represented through receipt `data_refs`, sensitivity classes, provenance, destination classes, and matched rules.
