@@ -2,7 +2,16 @@
 
 **Runtime authorization for autonomous AI agents.** IntentFence converts a user's delegated objective into a typed Intent Contract and places a fail-closed authorization boundary in front of protected agent actions.
 
-Phase 1 establishes the contracts, API boundary, persistence primitives, dashboard shell, and CI gates required before deterministic production policy is enabled.
+Phase 1 establishes the contracts, API boundary, persistence primitives, dashboard shell, and CI gates required before deterministic production policy is enabled. Phase 5 adds a model-independent semantic intent layer for ambiguous actions without giving an LLM root authorization authority.
+
+## Security invariants
+
+- Intent may narrow authority; it never expands it.
+- External content cannot grant authority.
+- Data may influence reasoning; data cannot grant authority.
+- Deterministic hard blocks remain authoritative and cannot be overridden by semantic or cloud models.
+- Semantic timeout, malformed output, low confidence without escalation, or provider failure fail closed to `REQUIRE_APPROVAL`.
+- Raw chain-of-thought, raw provider output, and secret-bearing request values are not part of the operator-facing semantic result.
 
 ## Phase 1 security guarantees
 
@@ -15,13 +24,63 @@ Phase 1 establishes the contracts, API boundary, persistence primitives, dashboa
 - Action Receipts and SecurityContext state can be persisted through SQLite.
 - The boundary fails closed while Phase 2 policy is absent.
 
-> The Phase 1 scaffold intentionally never returns ALLOW from the placeholder authorizer. Production deterministic authorization begins in Phase 2.
+> The Phase 1 placeholder authorizer intentionally never returns production `ALLOW`. Deterministic production authorization belongs to the policy layer; the Phase 5 semantic layer is advisory and does not replace it.
+
+## Phase 5 semantic intent layer
+
+Phase 5 provides:
+
+- strict `SemanticEvaluation` results with `ALLOW`, `BLOCK`, or `REQUIRE_APPROVAL` recommendations;
+- compact semantic context containing the active objective, authorization boundaries, action metadata, state indicators, and data labels without arbitrary full history or raw secret-bearing values;
+- a structured semantic judge that validates provider JSON and fails closed on timeout, malformed output, or provider errors;
+- an Ollama adapter for local inference;
+- optional local-to-cloud semantic escalation through an injected cloud judge;
+- a high-risk escalation guard so cloud semantic alignment cannot convert high-risk approval state into `ALLOW`;
+- a versioned Intent Contract compiler and revision path;
+- a stable operator-facing semantic summary containing only the decision hint, reason, relevance, confidence, source, model, latency, and escalation state.
+
+Final `/authorize` precedence integration is intentionally deferred until the deterministic policy, state, and data-flow phases expose their canonical interfaces.
+
+## Local semantic model
+
+Ollama is optional and is **not required by CI**. The current local adapter defaults are:
+
+```text
+base URL: http://localhost:11434
+model:    qwen2.5:7b
+timeout:  5 seconds
+```
+
+The adapter is constructor-configured so later gateway/runtime wiring can supply deployment-specific settings without coupling the semantic engine to one host:
+
+```python
+from intentfence_api.semantic import OllamaProvider, StructuredSemanticJudge
+
+provider = OllamaProvider(
+    base_url="http://localhost:11434",
+    model="qwen2.5:7b",
+    timeout_seconds=5.0,
+)
+judge = StructuredSemanticJudge(provider)
+```
+
+Tests use `httpx.MockTransport`; they never contact a live model server. A cloud provider is also optional. `HybridSemanticJudge` accepts an injected cloud judge and escalates only when local confidence is below the configured threshold.
+
+## Versioned Intent Contracts
+
+`IntentContractDraft` accepts only user-authorized contract fields. Unknown fields, including external-content instructions, are rejected. Compiling a draft produces contract version 1. Revising a contract:
+
+- preserves the session ID;
+- creates a new intent ID;
+- increments `contract_version`;
+- links `previous_intent_id` to the prior contract;
+- replaces authority with the newly delegated boundaries rather than inheriting authority from external content.
 
 ## Repository structure
 
 ```text
 apps/
-  api/          FastAPI enforcement API
+  api/          FastAPI enforcement API and semantic intent layer
   dashboard/    Next.js dashboard foundation
 packages/
   contracts/    Shared typed security contracts
@@ -91,7 +150,9 @@ Verify the fail-closed endpoint specifically:
 python -m pytest apps/api/tests/test_authorize.py::test_authorize_endpoint_returns_typed_decision -q
 ```
 
-## API surface in Phase 1
+Semantic tests cover compact context, strict result validation, timeout/malformed/provider failure handling, Ollama request/response behavior, hybrid escalation, high-risk approval preservation, contract versioning, and operator-facing summaries.
+
+## API surface
 
 ### `GET /health`
 
@@ -105,11 +166,11 @@ Accepts:
 - `IntentContract`
 - `SecurityContext`
 
-Returns a typed `Decision`. Until Phase 2 is merged, a structurally valid request receives `REQUIRE_APPROVAL`, never `ALLOW`.
+Returns a typed `Decision`. Until deterministic policy is integrated, a structurally valid request remains fail closed rather than granting production `ALLOW` from semantic output alone.
 
 ## Shared contracts
 
-Phase 1 exports:
+The shared contract package exports:
 
 - `IntentContract`
 - `ToolRequest`
@@ -118,7 +179,7 @@ Phase 1 exports:
 - `Decision`
 - `ActionReceipt`
 
-These interfaces are the stable boundary consumed by later policy, state, data-flow, semantic, gateway, benchmark, and console phases.
+These interfaces are the stable boundary consumed by policy, state, data-flow, semantic, gateway, benchmark, and console phases.
 
 ## Branch convention
 
@@ -137,9 +198,9 @@ Bug fixes:
 Example:
 
 ```text
-rajeet/phase-1-feat-foundation
+rajeet/phase-5-feat-semantic-intent
 ```
 
-## Current development rule
+## Development rule
 
-Security implementation is merged serially through reviewed pull requests. Phase 2 starts from merged `main` only after the complete Phase 1 CI gate is green.
+Security implementation is merged serially through reviewed pull requests. Parallel phase work may expose stable interfaces, but final authorization precedence is integrated only after its dependency phases are available and the full CI gate is green.
