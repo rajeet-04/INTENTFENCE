@@ -2,6 +2,7 @@ import inspect
 from importlib import import_module, util
 
 from intentfence_api.gateway import IntentFenceGateway
+
 from intentfence_analytics import Scenario, load_scenarios_dir, run_benchmark
 
 
