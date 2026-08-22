@@ -1,11 +1,13 @@
 from .adapters import (
+    DataFlowAdapter,
     Phase5SemanticAdapter,
     PolicyAdapter,
     SemanticAdapter,
-    StateDataFlowAdapter,
+    StateAdapter,
 )
 from .agent import AgentToolCall, CloudAgentProvider, GatewayAgentRunner
 from .baseline import BaselineSecurityAdapter
+from .dataflow import DataFlowSecurityAdapter, TrustedDataRegistry
 from .demo import (
     HotelAttackComparison,
     build_hotel_attack_scenario,
@@ -14,6 +16,7 @@ from .demo import (
 from .models import ComponentDecision, GatewayExecution, GatewayMode, SecurityEvent
 from .runtime import SandboxProtectedToolRuntime
 from .service import IntentFenceGateway
+from .state import GatewayStateStore, StateSecurityAdapter
 from .tools import (
     CORE_TOOL_NAMES,
     NormalizedToolRequest,
@@ -27,9 +30,12 @@ __all__ = [
     "CORE_TOOL_NAMES",
     "CloudAgentProvider",
     "ComponentDecision",
+    "DataFlowAdapter",
+    "DataFlowSecurityAdapter",
     "GatewayAgentRunner",
     "GatewayExecution",
     "GatewayMode",
+    "GatewayStateStore",
     "HotelAttackComparison",
     "IntentFenceGateway",
     "NormalizedToolRequest",
@@ -39,7 +45,9 @@ __all__ = [
     "SandboxProtectedToolRuntime",
     "SecurityEvent",
     "SemanticAdapter",
-    "StateDataFlowAdapter",
+    "StateAdapter",
+    "StateSecurityAdapter",
+    "TrustedDataRegistry",
     "build_hotel_attack_scenario",
     "normalize_tool_request",
     "run_hotel_attack_demo",
