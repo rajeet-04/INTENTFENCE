@@ -69,7 +69,14 @@ class SandboxProtectedToolRuntime:
             host = (parsed.hostname or "").lower()
             if not host.endswith(".example"):
                 raise ValueError("live browsing requires an explicitly configured web provider")
-            content = self.environment.read_fixture(f"web/{host}.html")
+            relative = f"web/{host}.html"
+            target = self.environment.resolve(relative)
+            if not target.exists() and not self._strict_fixtures:
+                self.environment.write_fixture(
+                    relative,
+                    f"Synthetic controlled web fixture for {host}\n",
+                )
+            content = self.environment.read_fixture(relative)
 
         content_ref = self.environment.store_payload(content)
         return {
