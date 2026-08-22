@@ -1,7 +1,8 @@
 from datetime import UTC, datetime, timedelta
 
-import intentfence_api.app as app_module
 import pytest
+
+import intentfence_api.app as app_module
 from intentfence_api.gateway.adapters import Phase5SemanticAdapter
 from intentfence_api.gateway.service import IntentFenceGateway
 from intentfence_api.semantic import (
