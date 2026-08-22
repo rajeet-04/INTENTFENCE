@@ -3,7 +3,8 @@ from uuid import uuid4
 
 from intentfence_classification import ClassifierConfig
 from intentfence_contracts import Decision, DecisionSource, DecisionType
-from intentfence_policy import PolicyInput, evaluate_policy
+from intentfence_policy import PolicyInput
+from intentfence_state import evaluate_stateful_policy
 
 from ..schemas import AuthorizeRequest
 
@@ -65,7 +66,7 @@ def authorize_request(
         )
 
     active_config = config or ClassifierConfig(workspace_roots=DEFAULT_WORKSPACE_ROOTS)
-    result = evaluate_policy(
+    result = evaluate_stateful_policy(
         PolicyInput(
             request=tool_request,
             contract=contract,
