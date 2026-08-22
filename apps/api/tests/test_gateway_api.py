@@ -1,5 +1,30 @@
 from datetime import UTC, datetime, timedelta
 
+import intentfence_api.app as app_module
+from intentfence_api.gateway.adapters import Phase5SemanticAdapter
+from intentfence_api.gateway.service import IntentFenceGateway
+from intentfence_api.semantic import (
+    SemanticEvaluation,
+    SemanticRecommendation,
+    SemanticSource,
+)
+
+
+class AllowSemanticJudge:
+    def evaluate(self, intent_contract, tool_request, security_context, data_labels=()):
+        del intent_contract, tool_request, security_context, data_labels
+        return SemanticEvaluation(
+            recommendation=SemanticRecommendation.ALLOW,
+            relevance_score=0.98,
+            confidence=0.99,
+            reason="Safe API control remains aligned with the active intent.",
+            reason_code="SEMANTIC_API_CONTROL_ALLOW",
+            source=SemanticSource.LOCAL,
+            model="api-control-test",
+            latency_ms=1,
+            escalated=False,
+        )
+
 
 def gateway_payload() -> dict:
     now = datetime.now(UTC)
@@ -50,7 +75,12 @@ def gateway_payload() -> dict:
     }
 
 
-def test_gateway_intercept_executes_safe_in_scope_tool(client) -> None:
+def test_gateway_intercept_executes_safe_in_scope_tool(client, monkeypatch) -> None:
+    test_gateway = IntentFenceGateway(
+        semantic_adapter=Phase5SemanticAdapter(AllowSemanticJudge())
+    )
+    monkeypatch.setattr(app_module, "gateway", test_gateway)
+
     response = client.post("/gateway/intercept", json=gateway_payload())
     assert response.status_code == 200
     body = response.json()
