@@ -4,7 +4,12 @@ import pytest
 
 import intentfence_api.app as app_module
 from intentfence_api.gateway.adapters import Phase5SemanticAdapter
+from intentfence_api.gateway.deterministic import (
+    Phase2PolicyAdapter,
+    Phase3StatePhase4DataFlowAdapter,
+)
 from intentfence_api.gateway.service import IntentFenceGateway
+from intentfence_api.gateway.tools import CORE_TOOL_NAMES
 from intentfence_api.semantic import (
     SemanticEvaluation,
     SemanticRecommendation,
@@ -158,3 +163,48 @@ def test_unknown_data_ref_cannot_be_authorized_by_caller_label(client, api_gatew
     response = client.post("/gateway/intercept", json=payload)
 
     assert response.status_code == 422
+
+
+def test_unknown_data_ref_without_trusted_label_fails_closed(client, api_gateway) -> None:
+    payload = _payload(tool="write_file", data_refs=["missing-ref"])
+
+    response = client.post("/gateway/intercept", json=payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["decision"] == "BLOCK"
+    assert body["executed"] is False
+    assert "UNKNOWN_DATA_REF" in body["event"]["matched_rules"]
+
+
+def test_public_receipts_do_not_copy_raw_secret_arguments(client, api_gateway) -> None:
+    secret = "sk-phase6-never-log-this"
+    payload = _payload(tool="write_file")
+    payload["tool_request"]["arguments"]["content"] = secret
+
+    response = client.post("/gateway/intercept", json=payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert secret not in response.text
+    for forbidden_key in ("chain_of_thought", "raw_provider_output", "raw_tool_payload"):
+        assert forbidden_key not in body["receipt"]
+        assert forbidden_key not in body["event"]
+
+
+def test_production_gateway_preserves_phase2_through_phase5_adapters() -> None:
+    gateway = app_module.gateway
+
+    assert isinstance(gateway.policy_adapter, Phase2PolicyAdapter)
+    assert isinstance(gateway.state_dataflow_adapter, Phase3StatePhase4DataFlowAdapter)
+    assert isinstance(gateway.semantic_adapter, Phase5SemanticAdapter)
+
+
+def test_exactly_five_protected_tool_wrappers_remain() -> None:
+    assert CORE_TOOL_NAMES == (
+        "browse_web",
+        "read_file",
+        "write_file",
+        "send_message",
+        "http_request",
+    )
