@@ -2,12 +2,11 @@ import { describe, expect, test } from "bun:test";
 
 const modulePath = "./security-console";
 
-type ConsoleMapper = (payload: Record<string, unknown>) => Record<string, unknown>;
-
-async function loadMapper(): Promise<ConsoleMapper | undefined> {
-  const loadedModule = (await import(modulePath).catch(() => ({}))) as Record<string, unknown>;
-  const mapper = loadedModule.buildSecurityConsoleViewModel;
-  return typeof mapper === "function" ? (mapper as ConsoleMapper) : undefined;
+async function loadMapper() {
+  const loadedModule = await import(modulePath).catch(() => ({}));
+  return typeof loadedModule.buildSecurityConsoleViewModel === "function"
+    ? loadedModule.buildSecurityConsoleViewModel
+    : undefined;
 }
 
 const demoPayload = {
@@ -39,7 +38,7 @@ const demoPayload = {
         semantic_relevance_score: 0.99,
         semantic_confidence: 0.99,
         risk_score: 0.1,
-        decision_source: "SEMANTIC",
+        decision_source: "SEMANTIC_LOCAL",
         final_decision: "ALLOW",
         reason: "Hotel lookup matches the active objective.",
         latency_ms: 8,
@@ -81,7 +80,7 @@ const demoPayload = {
         semantic_relevance_score: null,
         semantic_confidence: null,
         risk_score: 1,
-        decision_source: "STATE",
+        decision_source: "STATE_POLICY",
         final_decision: "BLOCK",
         reason: "Secret-to-network action chain is blocked.",
         latency_ms: 1,
@@ -102,7 +101,7 @@ const demoPayload = {
         semantic_relevance_score: 0.98,
         semantic_confidence: 0.98,
         risk_score: 0.1,
-        decision_source: "SEMANTIC",
+        decision_source: "SEMANTIC_LOCAL",
         final_decision: "ALLOW",
         reason: "Saving the selected hotel is within scope.",
         latency_ms: 7,
@@ -139,7 +138,7 @@ describe("Phase 7 security console view model", () => {
     expect(view.contractVersion).toBe(1);
     expect(view.scenarioId).toBe(demoPayload.scenario_id);
     expect(Array.isArray(view.actions)).toBe(true);
-    expect((view.actions as unknown[]).length).toBe(4);
+    expect(view.actions.length).toBe(4);
   });
 
   test("surfaces the blocked attack chain and proves no sensitive data escaped", async () => {
