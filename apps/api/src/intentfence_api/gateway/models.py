@@ -39,6 +39,7 @@ class SecurityEvent(GatewayModel):
     session_id: str = Field(min_length=1)
     request_id: str = Field(min_length=1)
     intent_id: str = Field(min_length=1)
+    contract_version: int = Field(ge=1)
     gateway_mode: GatewayMode
     tool: str = Field(min_length=1)
     resource_class: ResourceClass | None = None
@@ -48,6 +49,7 @@ class SecurityEvent(GatewayModel):
     matched_rules: list[str] = Field(default_factory=list)
     semantic_relevance: float | None = Field(default=None, ge=0.0, le=1.0)
     semantic_confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    accumulated_risk: float = Field(ge=0.0, le=1.0)
     risk_score: float = Field(ge=0.0, le=1.0)
     final_decision: DecisionType
     decision_source: DecisionSource
