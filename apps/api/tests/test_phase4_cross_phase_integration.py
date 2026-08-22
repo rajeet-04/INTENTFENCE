@@ -281,7 +281,7 @@ def test_phase4_derived_credential_cannot_be_laundered_through_message() -> None
     )
     normalized = _request(
         tool="send_message",
-        arguments={"recipient": "internal-auth.example", "message_ref": derived.data_id},
+        arguments={"destination": "internal-auth.example", "message_ref": derived.data_id},
         data_refs=[derived.data_id],
     )
 
