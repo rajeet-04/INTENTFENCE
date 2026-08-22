@@ -65,13 +65,18 @@ def _normalized_set(entries: list[str]) -> set[str]:
 
 def _resource_matches_allowed(resource_ref: str, allowed_resources: list[str]) -> bool:
     normalized_ref = normalize_path(resource_ref)
+    base_name = normalized_ref.rsplit("/", 1)[-1]
     for entry in allowed_resources:
         scoped = entry.rstrip().endswith("/")
         normalized_entry = normalize_path(entry).rstrip("/")
         if scoped:
             if is_path_under_root(normalized_ref, normalized_entry):
                 return True
-        elif normalized_ref == normalized_entry:
+            continue
+        if normalized_ref == normalized_entry:
+            return True
+        symbolic = "/" not in normalized_entry and "." not in normalized_entry
+        if symbolic and base_name == normalized_entry:
             return True
     return False
 
