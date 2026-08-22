@@ -10,6 +10,27 @@ from intentfence_contracts import (
 from pydantic import BaseModel, ConfigDict, Field
 
 SENSITIVE_SENSITIVITIES = {Sensitivity.CONFIDENTIAL, Sensitivity.CRITICAL}
+CREDENTIAL_DATA_TYPES = {"API_KEY", "PASSWORD"}
+MESSAGING_TOOLS = {"send_message"}
+EXTERNAL_DESTINATION_CLASSES = {
+    DestinationClass.KNOWN_EXTERNAL,
+    DestinationClass.UNKNOWN_EXTERNAL,
+}
+SUSPICIOUS_PURPOSE_TOKENS = {
+    "exfiltration",
+    "exfiltrate",
+    "exfiltrated",
+    "leak",
+    "leaked",
+    "leaking",
+    "steal",
+    "stealing",
+    "stolen",
+    "attacker",
+    "keylogger",
+    "covertly",
+    "secretly",
+}
 
 RISK_ALLOW = 0.0
 RISK_REQUIRE_APPROVAL = 0.6
@@ -78,6 +99,10 @@ def _purpose_tokens(text: str) -> set[str]:
     return {token for token in tokens if len(token) >= 3 and token not in STOPWORDS}
 
 
+def _normalize_purpose(purpose: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", purpose.strip().lower()).strip("_")
+
+
 def _allow(reason: str) -> FlowVerdict:
     return FlowVerdict(
         decision=DecisionType.ALLOW,
@@ -115,12 +140,51 @@ def _worst(verdicts: list[FlowVerdict]) -> FlowVerdict:
     )
 
 
+def _check_tool_constraints(labels: list[DataLabel], tool: str | None) -> FlowVerdict | None:
+    if tool is None:
+        return None
+    normalized_tool = tool.strip().lower()
+    if normalized_tool not in MESSAGING_TOOLS:
+        return None
+    credential_labels = [
+        label for label in labels if label.data_type.strip().upper() in CREDENTIAL_DATA_TYPES
+    ]
+    if not credential_labels:
+        return None
+    types = ", ".join(sorted({label.data_type for label in credential_labels}))
+    return FlowVerdict(
+        decision=DecisionType.BLOCK,
+        reason=(
+            f"Credential data ({types}) cannot be transmitted through "
+            f"messaging tool {normalized_tool}, regardless of destination trust."
+        ),
+        matched_rules=["CREDENTIAL_DATA_IN_MESSAGING"],
+        rule_strength=RuleStrength.HARD_BLOCK,
+        risk_score=RISK_BLOCK,
+    )
+
+
 def _check_destination_class(
     labels: list[DataLabel],
     destination: str | None,
     destination_class: DestinationClass | None,
 ) -> FlowVerdict | None:
-    if destination_class is None or destination is None:
+    if destination is None:
+        return None
+    sensitive = [label for label in labels if label.sensitivity in SENSITIVE_SENSITIVITIES]
+    if destination_class is None:
+        if sensitive:
+            types = ", ".join(sorted({label.data_type for label in sensitive}))
+            return FlowVerdict(
+                decision=DecisionType.REQUIRE_APPROVAL,
+                reason=(
+                    f"Destination classification for {destination} is unresolved; "
+                    f"sensitive data ({types}) requires approval before egress."
+                ),
+                matched_rules=["DESTINATION_CLASS_UNRESOLVED"],
+                rule_strength=RuleStrength.REQUIRE_APPROVAL,
+                risk_score=RISK_REQUIRE_APPROVAL,
+            )
         return None
     if destination_class is DestinationClass.BLOCKED:
         return FlowVerdict(
@@ -133,7 +197,6 @@ def _check_destination_class(
             rule_strength=RuleStrength.HARD_BLOCK,
             risk_score=RISK_BLOCK,
         )
-    sensitive = [label for label in labels if label.sensitivity in SENSITIVE_SENSITIVITIES]
     if sensitive and destination_class is DestinationClass.UNKNOWN_EXTERNAL:
         types = ", ".join(sorted({label.data_type for label in sensitive}))
         return FlowVerdict(
@@ -174,14 +237,77 @@ def _check_allowed_destinations(
     )
 
 
+def _check_authorized_egress(
+    labels: list[DataLabel],
+    destination: str | None,
+    destination_class: DestinationClass | None,
+) -> FlowVerdict | None:
+    if destination is None or destination_class not in EXTERNAL_DESTINATION_CLASSES:
+        return None
+    unbound = [
+        label
+        for label in labels
+        if label.sensitivity in SENSITIVE_SENSITIVITIES and not label.allowed_destinations
+    ]
+    if not unbound:
+        return None
+    types = ", ".join(sorted({label.data_type for label in unbound}))
+    return FlowVerdict(
+        decision=DecisionType.BLOCK,
+        reason=(
+            f"{types} has no authorized destinations configured and cannot "
+            f"egress to external destination {destination}."
+        ),
+        matched_rules=["SENSITIVE_DATA_NO_AUTHORIZED_DESTINATION"],
+        rule_strength=RuleStrength.HARD_BLOCK,
+        risk_score=RISK_BLOCK,
+    )
+
+
 def _check_purpose_binding(
     labels: list[DataLabel],
     declared_purpose: str | None,
     purpose_context: str | None,
+    approved_purposes: list[str] | None,
 ) -> FlowVerdict | None:
     sensitive = [label for label in labels if label.sensitivity in SENSITIVE_SENSITIVITIES]
     if not sensitive:
         return None
+
+    def mismatch_verdict(mismatched: list[DataLabel]) -> FlowVerdict:
+        critical = any(label.sensitivity is Sensitivity.CRITICAL for label in mismatched)
+        types = ", ".join(sorted({label.data_type for label in mismatched}))
+        reason = (
+            f"Data purpose does not match the authorized task purpose for {types}; "
+            "purpose-bound data cannot be used outside its bound purpose."
+        )
+        if critical:
+            return FlowVerdict(
+                decision=DecisionType.BLOCK,
+                reason=reason,
+                matched_rules=["DATA_PURPOSE_MISMATCH"],
+                rule_strength=RuleStrength.HARD_BLOCK,
+                risk_score=RISK_BLOCK,
+            )
+        return FlowVerdict(
+            decision=DecisionType.REQUIRE_APPROVAL,
+            reason=reason,
+            matched_rules=["DATA_PURPOSE_MISMATCH"],
+            rule_strength=RuleStrength.REQUIRE_APPROVAL,
+            risk_score=RISK_REQUIRE_APPROVAL,
+        )
+
+    if approved_purposes is not None:
+        normalized_approved = {_normalize_purpose(purpose) for purpose in approved_purposes}
+        mismatched = [
+            label
+            for label in sensitive
+            if _normalize_purpose(label.purpose) not in normalized_approved
+        ]
+        if mismatched:
+            return mismatch_verdict(mismatched)
+        return None
+
     context_text = " ".join(part for part in (declared_purpose, purpose_context) if part)
     if not context_text.strip():
         return FlowVerdict(
@@ -192,32 +318,25 @@ def _check_purpose_binding(
             risk_score=RISK_REQUIRE_APPROVAL,
         )
     context_tokens = _purpose_tokens(context_text)
-    mismatched = [
-        label for label in sensitive if not (_purpose_tokens(label.purpose) & context_tokens)
-    ]
-    if not mismatched:
-        return None
-    critical = [label for label in mismatched if label.sensitivity is Sensitivity.CRITICAL]
-    types = ", ".join(sorted({label.data_type for label in mismatched}))
-    reason = (
-        f"Data purpose does not match the declared task purpose for {types}; "
-        "purpose-bound data cannot be used outside its bound purpose."
-    )
-    if critical:
+    suspicious = sorted(context_tokens & SUSPICIOUS_PURPOSE_TOKENS)
+    if suspicious:
+        types = ", ".join(sorted({label.data_type for label in sensitive}))
         return FlowVerdict(
             decision=DecisionType.BLOCK,
-            reason=reason,
-            matched_rules=["DATA_PURPOSE_MISMATCH"],
+            reason=(
+                f"Purpose context contains suspicious intent tokens "
+                f"({', '.join(suspicious)}); refusing sensitive data flow for {types}."
+            ),
+            matched_rules=["SUSPICIOUS_PURPOSE_CONTEXT"],
             rule_strength=RuleStrength.HARD_BLOCK,
             risk_score=RISK_BLOCK,
         )
-    return FlowVerdict(
-        decision=DecisionType.REQUIRE_APPROVAL,
-        reason=reason,
-        matched_rules=["DATA_PURPOSE_MISMATCH"],
-        rule_strength=RuleStrength.REQUIRE_APPROVAL,
-        risk_score=RISK_REQUIRE_APPROVAL,
-    )
+    mismatched = [
+        label for label in sensitive if not (_purpose_tokens(label.purpose) <= context_tokens)
+    ]
+    if mismatched:
+        return mismatch_verdict(mismatched)
+    return None
 
 
 def evaluate_flow(
@@ -228,11 +347,14 @@ def evaluate_flow(
     destination_class: DestinationClass | None = None,
     declared_purpose: str | None = None,
     purpose_context: str | None = None,
+    approved_purposes: list[str] | None = None,
 ) -> FlowVerdict:
     checks = [
+        _check_tool_constraints(labels, tool),
         _check_destination_class(labels, destination, destination_class),
         _check_allowed_destinations(labels, destination),
-        _check_purpose_binding(labels, declared_purpose, purpose_context),
+        _check_authorized_egress(labels, destination, destination_class),
+        _check_purpose_binding(labels, declared_purpose, purpose_context, approved_purposes),
     ]
     violations = [check for check in checks if check is not None]
     if not violations:
