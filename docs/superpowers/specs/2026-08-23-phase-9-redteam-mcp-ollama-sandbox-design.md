@@ -86,6 +86,8 @@ The sandbox contains only disposable fixtures and controlled sinks.
 
 A malicious disabled-mode demonstration may genuinely read a fake secret and genuinely deliver it to a sandbox outbox or local attacker sink. The enabled demonstration must run the exact same requested handler but stop it before execution.
 
+Sandbox state may contain the deliberately fake demonstration payload so the disabled comparison has a real observable consequence. Action Receipts, Security Events, benchmark records, API summaries, and dashboard evidence remain metadata-only and must not copy raw fake-secret contents or model/provider raw payloads into persistent evidence.
+
 ### 4.2 `browse_web`
 
 Two execution profiles are supported:
@@ -128,7 +130,7 @@ The legitimate hotel workflow proves that an allowed write still completes after
 
 `send_message` writes a real message event to a controlled sandbox outbox rather than a live mail/SMS/chat provider.
 
-Each record includes only demonstration-safe fields such as recipient, subject or message metadata, referenced sandbox data IDs, and delivery status.
+The outbox may hold a deliberately fake demo payload in memory or ephemeral sandbox storage for disabled-mode proof, but receipts/events expose only safe metadata such as recipient, referenced sandbox data IDs, byte counts, and delivery status.
 
 For the disabled malicious comparison, a fake-secret payload may genuinely enter the sandbox outbox. For the enabled comparison, no outbox record may be created.
 
@@ -182,7 +184,7 @@ Required proof:
 - unauthorized secret read and/or exfiltration is `BLOCK` or `REQUIRE_APPROVAL` according to canonical rules;
 - the blocked handler invocation count remains zero;
 - the attacker sink/outbox remains unchanged;
-- Action Receipt and Security Event identify the rule/source/risk chain;
+- Action Receipt and Security Event identify the rule/source/risk chain without raw fake-secret contents;
 - the legitimate hotel comparison and allowed workspace write still complete.
 
 ## 6. Ollama Judge Agent
@@ -361,7 +363,7 @@ CI uses dependency-injected fake Ollama chat responses, fake search/fetch provid
 
 The real M4 Mac judge-readiness run is a separate mandatory acceptance gate.
 
-## 14. M4 Mac Judge-Readiness TODO
+## 14. M4 Mac Judge-Readiness Gate
 
 This environment cannot execute the user's local Ollama daemon. The repository must therefore provide a concrete smoke command/script for Codex or the user to execute on the M4 Mac.
 
