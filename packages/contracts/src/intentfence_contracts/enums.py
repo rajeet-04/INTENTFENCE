@@ -1,0 +1,62 @@
+from enum import StrEnum
+
+
+class DecisionType(StrEnum):
+    ALLOW = "ALLOW"
+    BLOCK = "BLOCK"
+    REQUIRE_APPROVAL = "REQUIRE_APPROVAL"
+
+
+class DecisionSource(StrEnum):
+    POLICY = "POLICY"
+    STATE_POLICY = "STATE_POLICY"
+    SEMANTIC_LOCAL = "SEMANTIC_LOCAL"
+    SEMANTIC_CLOUD = "SEMANTIC_CLOUD"
+    HUMAN = "HUMAN"
+
+
+class SourceContext(StrEnum):
+    USER = "USER"
+    SYSTEM = "SYSTEM"
+    TRUSTED_INTERNAL = "TRUSTED_INTERNAL"
+    EXTERNAL_WEB = "EXTERNAL_WEB"
+    EXTERNAL_EMAIL = "EXTERNAL_EMAIL"
+    EXTERNAL_API = "EXTERNAL_API"
+    UNKNOWN = "UNKNOWN"
+
+
+class Sensitivity(StrEnum):
+    PUBLIC = "PUBLIC"
+    INTERNAL = "INTERNAL"
+    CONFIDENTIAL = "CONFIDENTIAL"
+    CRITICAL = "CRITICAL"
+
+
+class ResourceClass(StrEnum):
+    PUBLIC_WEB = "PUBLIC_WEB"
+    USER_DOCUMENT = "USER_DOCUMENT"
+    WORKSPACE_FILE = "WORKSPACE_FILE"
+    PRIVATE_FILE = "PRIVATE_FILE"
+    SECRET = "SECRET"
+    CREDENTIAL = "CREDENTIAL"
+    SYSTEM_FILE = "SYSTEM_FILE"
+    UNKNOWN = "UNKNOWN"
+
+
+class DestinationClass(StrEnum):
+    TRUSTED = "TRUSTED"
+    USER_APPROVED = "USER_APPROVED"
+    KNOWN_EXTERNAL = "KNOWN_EXTERNAL"
+    UNKNOWN_EXTERNAL = "UNKNOWN_EXTERNAL"
+    BLOCKED = "BLOCKED"
+
+
+class RiskTolerance(StrEnum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
+class RuleStrength(StrEnum):
+    HARD_BLOCK = "HARD_BLOCK"
+    REQUIRE_APPROVAL = "REQUIRE_APPROVAL"
