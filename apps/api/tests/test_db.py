@@ -1,7 +1,5 @@
 from datetime import UTC, datetime
 
-from intentfence_api.db import create_db_engine, init_db
-from intentfence_api.repository import ReceiptRepository, SecurityContextRepository
 from intentfence_contracts import (
     ActionReceipt,
     DecisionSource,
@@ -11,6 +9,9 @@ from intentfence_contracts import (
     RuleStrength,
     SecurityContext,
 )
+
+from intentfence_api.db import create_db_engine, init_db
+from intentfence_api.repository import ReceiptRepository, SecurityContextRepository
 
 NOW = datetime(2026, 8, 22, 10, 0, tzinfo=UTC)
 
