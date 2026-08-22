@@ -103,7 +103,12 @@ jobs:
         run: make test-frontend
       - name: Reject fabricated benchmark headline values
         run: |
-          if rg -n "96\.4%|98\.1%|1\.7%" apps/dashboard --glob '!**/*.test.*'; then
+          command -v grep >/dev/null
+          if grep -R -n -E \
+            --exclude='*.test.*' \
+            --exclude-dir=node_modules \
+            --exclude-dir=.next \
+            '96\.4%|98\.1%|1\.7%' apps/dashboard; then
             echo "Fabricated benchmark headline value found in production dashboard source"
             exit 1
           fi
