@@ -1,1 +1,0 @@
-Draft PR CI must demonstrate the RED failures before production adapter changes.
