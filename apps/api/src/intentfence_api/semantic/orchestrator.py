@@ -65,7 +65,10 @@ class HybridSemanticJudge:
                 recommendation=SemanticRecommendation.REQUIRE_APPROVAL,
                 relevance_score=cloud.relevance_score,
                 confidence=cloud.confidence,
-                reason="High-risk context requires human approval despite cloud semantic alignment.",
+                reason=(
+                    "High-risk context requires human approval despite cloud semantic "
+                    "alignment."
+                ),
                 reason_code="SEMANTIC_HIGH_RISK_APPROVAL",
                 source=cloud.source,
                 model=cloud.model,
