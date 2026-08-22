@@ -1,6 +1,5 @@
 from datetime import UTC, datetime
 
-from intentfence_api.semantic.orchestrator import HybridSemanticJudge
 from intentfence_contracts import (
     IntentContract,
     RiskTolerance,
@@ -14,6 +13,7 @@ from intentfence_api.semantic.models import (
     SemanticRecommendation,
     SemanticSource,
 )
+from intentfence_api.semantic.orchestrator import HybridSemanticJudge
 
 
 class FakeJudge:
