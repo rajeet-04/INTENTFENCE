@@ -9,6 +9,7 @@ requires-python = ">=3.12"
 dependencies = [
   "fastapi>=0.116,<1",
   "httpx>=0.27,<1",
+  "intentfence-analytics",
   "intentfence-classification",
   "intentfence-dataflow",
   "intentfence-policy",
