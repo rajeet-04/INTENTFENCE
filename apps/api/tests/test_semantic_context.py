@@ -1,6 +1,5 @@
 from datetime import UTC, datetime
 
-from intentfence_api.semantic.context import build_semantic_context
 from intentfence_contracts import (
     DataLabel,
     IntentContract,
@@ -11,6 +10,8 @@ from intentfence_contracts import (
     SourceContext,
     ToolRequest,
 )
+
+from intentfence_api.semantic.context import build_semantic_context
 
 
 def _inputs():
