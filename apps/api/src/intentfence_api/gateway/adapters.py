@@ -29,7 +29,7 @@ class PolicyAdapter(Protocol):
     ) -> ComponentDecision: ...
 
 
-class StateDataFlowAdapter(Protocol):
+class StateAdapter(Protocol):
     def evaluate(
         self,
         request: ToolRequest,
@@ -39,6 +39,20 @@ class StateDataFlowAdapter(Protocol):
         resource_class: ResourceClass,
         destination: str | None,
         data_labels: Sequence[DataLabel] = (),
+    ) -> ComponentDecision: ...
+
+
+class DataFlowAdapter(Protocol):
+    def evaluate(
+        self,
+        request: ToolRequest,
+        intent_contract: IntentContract,
+        security_context: SecurityContext,
+        *,
+        resource_class: ResourceClass,
+        destination: str | None,
+        data_labels: Sequence[DataLabel] = (),
+        missing_data_refs: Sequence[str] = (),
     ) -> ComponentDecision: ...
 
 

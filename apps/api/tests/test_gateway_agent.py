@@ -1,12 +1,6 @@
 from datetime import UTC, datetime
 
-from intentfence_contracts import (
-    DecisionType,
-    IntentContract,
-    RiskTolerance,
-    SecurityContext,
-    SourceContext,
-)
+from intentfence_contracts import DecisionType, IntentContract, RiskTolerance, SourceContext
 
 from intentfence_api.gateway.agent import AgentToolCall, GatewayAgentRunner
 
@@ -29,14 +23,6 @@ def _contract() -> IntentContract:
     )
 
 
-def _context() -> SecurityContext:
-    return SecurityContext(
-        session_id="agent-session",
-        intent_id="intent-agent-v1",
-        last_updated_at=NOW,
-    )
-
-
 class FakeCloudProvider:
     def next_tool_call(self, objective: str) -> AgentToolCall:
         assert objective == "Compare hotel prices."
@@ -52,7 +38,6 @@ def test_cloud_provider_tool_call_is_forced_through_gateway() -> None:
     runner = GatewayAgentRunner(provider=FakeCloudProvider())
     result = runner.run_next(
         _contract(),
-        _context(),
         handler=lambda arguments: calls.append(arguments) or {"price": 120},
         now=NOW,
     )
@@ -73,7 +58,6 @@ def test_agent_wrapper_cannot_request_non_core_tool() -> None:
         runner.execute_tool_call(
             call,
             _contract(),
-            _context(),
             handler=lambda arguments: {"unexpected": True},
             now=NOW,
         )
