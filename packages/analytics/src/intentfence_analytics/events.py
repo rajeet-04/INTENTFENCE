@@ -10,7 +10,7 @@ from intentfence_contracts import (
     Sensitivity,
 )
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
-from sqlalchemy import JSON, Engine, String, create_engine
+from sqlalchemy import JSON, Engine, String, create_engine, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
 from .scenarios import GroundTruth, MutationType, ScenarioType
@@ -130,16 +130,18 @@ class EventStore:
             rows = session.query(BenchmarkEventRow.run_id).distinct().all()
         return sorted(row.run_id for row in rows)
 
-    def _list_all(self) -> list[BenchmarkEvent]:
-        from sqlalchemy import select
+    def latest_run_id(self) -> str | None:
+        with Session(self._engine) as session:
+            return session.scalar(
+                select(BenchmarkEventRow.run_id).order_by(BenchmarkEventRow.id.desc()).limit(1)
+            )
 
+    def _list_all(self) -> list[BenchmarkEvent]:
         with Session(self._engine) as session:
             rows = session.scalars(select(BenchmarkEventRow).order_by(BenchmarkEventRow.id)).all()
         return [_event_from_row(row) for row in rows]
 
     def list_run_events(self, run_id: str) -> list[BenchmarkEvent]:
-        from sqlalchemy import select
-
         with Session(self._engine) as session:
             rows = session.scalars(
                 select(BenchmarkEventRow)
