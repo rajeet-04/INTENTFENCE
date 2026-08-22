@@ -302,9 +302,9 @@ TOOL REQUEST
 ### Hybrid decision order
 
 ```text
-Deterministic policy
-        ↓ if unresolved
-State + data-flow rules
+Static deterministic rules
+        ↓
+Stateful + data-flow rules
         ↓ if unresolved
 Local semantic judge
         ↓ if low confidence
@@ -312,6 +312,8 @@ Optional cloud escalation
         ↓
 ALLOW / BLOCK / REQUIRE_APPROVAL
 ```
+
+A static `ALLOW` is never final until relevant stateful and data-flow rules have also been evaluated.
 
 ---
 
@@ -703,7 +705,7 @@ Semantic confidence is probabilistic and must remain distinct from deterministic
 Suggested initial routing:
 
 - deterministic hard block → final `BLOCK`
-- semantic confidence ≥ 0.80 → use semantic recommendation when no hard policy conflicts
+- semantic confidence ≥ 0.80 → use semantic recommendation when no hard/stateful policy conflicts
 - semantic confidence < 0.80 and low/medium risk → optional cloud escalation
 - unresolved high-risk action → `REQUIRE_APPROVAL`
 
@@ -729,24 +731,55 @@ Constraints:
 
 ---
 
-## 15. Final Decision Precedence
+## 15. Final Authorization Decision
+
+### 15.1 Decision precedence
+
+All applicable static and stateful policy checks must run before an `ALLOW` becomes final.
 
 ```text
-1. Deterministic HARD_BLOCK
-2. Deterministic explicit ALLOW where safe and complete
-3. Stateful/data-flow policy result
-4. Local semantic judgment if needed
-5. Optional cloud escalation if appropriate
-6. Human approval for unresolved consequential actions
+1. Authority boundary validation
+2. Static deterministic HARD_BLOCK rules
+3. Stateful / data-flow HARD_BLOCK rules
+4. Static + stateful REQUIRE_APPROVAL rules
+5. Semantic judgment if deterministic/stateful rules remain unresolved
+6. Optional cloud escalation if allowed and still unresolved
+7. Human approval for unresolved consequential actions
+8. ALLOW only when no higher-precedence block/approval condition applies
 ```
 
-### Decision enum
+A tool being listed in `allowed_tools` is **necessary but not sufficient** for final authorization.
+
+### 15.2 Decision enum
 
 ```text
 ALLOW
 BLOCK
 REQUIRE_APPROVAL
 ```
+
+### 15.3 Fixed Decision schema
+
+```json
+{
+  "decision": "BLOCK",
+  "reason": "Critical credential data cannot be sent to an unknown external destination.",
+  "risk_score": 1.0,
+  "decision_source": "POLICY",
+  "matched_rules": ["SECRET_TO_UNKNOWN_EXTERNAL"],
+  "semantic_confidence": null,
+  "requires_approval": false,
+  "receipt_id": "receipt-uuid"
+}
+```
+
+Allowed `decision_source` values:
+
+- `POLICY`
+- `STATE_POLICY`
+- `SEMANTIC_LOCAL`
+- `SEMANTIC_CLOUD`
+- `HUMAN`
 
 ---
 
@@ -1025,17 +1058,7 @@ Input:
 - active `IntentContract`
 - current `SecurityContext`
 
-Output:
-
-```json
-{
-  "decision": "BLOCK",
-  "reason": "Credential access is unrelated to the delegated objective.",
-  "risk_score": 0.96,
-  "decision_source": "POLICY",
-  "receipt_id": "receipt-uuid"
-}
-```
+Output: fixed `Decision`
 
 ### `GET /sessions/{session_id}/context`
 
@@ -1340,11 +1363,12 @@ Phase 0 is complete when the team confirms all of the following:
 2. `IntentContract`, `ToolRequest`, `DataLabel`, `SecurityContext`, `Decision`, and `ActionReceipt` are fixed implementation contracts.
 3. External content cannot grant authority.
 4. Deterministic hard blocks cannot be overridden by semantic models.
-5. Sensitive data labels propagate through controlled transformations.
-6. Stateful sequence analysis is part of the core MVP.
-7. Temporal intent versioning is part of the contract model.
-8. Human-readable Action Receipts are part of the core product UX.
-9. The benchmark includes benign, malicious, and adversarially mutated cases.
-10. The product is measured on security efficacy **and** usability guardrails.
-11. Full enterprise DLP/taint analysis remains out of scope.
-12. The 30-hour phase gates are accepted before implementation planning begins.
+5. An explicit tool allow cannot bypass stateful or data-flow policy checks.
+6. Sensitive data labels propagate through controlled transformations.
+7. Stateful sequence analysis is part of the core MVP.
+8. Temporal intent versioning is part of the contract model.
+9. Human-readable Action Receipts are part of the core product UX.
+10. The benchmark includes benign, malicious, and adversarially mutated cases.
+11. The product is measured on security efficacy **and** usability guardrails.
+12. Full enterprise DLP/taint analysis remains out of scope.
+13. The 30-hour phase gates are accepted before implementation planning begins.
