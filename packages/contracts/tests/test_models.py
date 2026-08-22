@@ -1,8 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from pydantic import ValidationError
-
 from intentfence_contracts import (
     ActionReceipt,
     DataLabel,
@@ -18,6 +16,7 @@ from intentfence_contracts import (
     SourceContext,
     ToolRequest,
 )
+from pydantic import ValidationError
 
 NOW = datetime(2026, 8, 22, 8, 30, tzinfo=UTC)
 
