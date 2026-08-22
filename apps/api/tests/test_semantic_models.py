@@ -1,5 +1,4 @@
 import pytest
-
 from intentfence_api.semantic.models import (
     SemanticEvaluation,
     SemanticRecommendation,
