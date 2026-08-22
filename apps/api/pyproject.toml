@@ -10,6 +10,7 @@ dependencies = [
   "fastapi>=0.116,<1",
   "httpx>=0.27,<1",
   "intentfence-classification",
+  "intentfence-dataflow",
   "intentfence-policy",
   "intentfence-state",
   "pydantic>=2.8,<3",
