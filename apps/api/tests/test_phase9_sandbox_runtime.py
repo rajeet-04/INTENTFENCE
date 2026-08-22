@@ -2,9 +2,9 @@ import json
 
 import httpx
 import pytest
-from intentfence_api.gateway.sandbox import SandboxEnvironment
 
 from intentfence_api.gateway.runtime import SandboxProtectedToolRuntime
+from intentfence_api.gateway.sandbox import SandboxEnvironment
 
 FAKE_SECRET = "DEMO_API_KEY=INTENTFENCE_FAKE_SECRET_DO_NOT_USE\n"
 
