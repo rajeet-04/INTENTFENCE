@@ -15,6 +15,14 @@ from .baseline import classify_destination
 from .models import ComponentDecision
 
 _DATA_MOVING_TOOLS = {"http_request", "send_message", "write_file"}
+_MAX_REASON_LENGTH = 240
+
+
+def _compact_reason(reason: str) -> str:
+    compact = " ".join(reason.split())
+    if len(compact) <= _MAX_REASON_LENGTH:
+        return compact
+    return f"{compact[: _MAX_REASON_LENGTH - 3].rstrip()}..."
 
 
 class TrustedDataRegistry:
@@ -74,7 +82,7 @@ class DataFlowSecurityAdapter:
         )
         return ComponentDecision(
             decision=verdict.decision,
-            reason=verdict.reason,
+            reason=_compact_reason(verdict.reason),
             source=DecisionSource.STATE_POLICY,
             risk_score=verdict.risk_score,
             matched_rules=list(verdict.matched_rules) or ["DATAFLOW_LABELS_ALLOW"],
