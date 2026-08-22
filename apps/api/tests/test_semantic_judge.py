@@ -8,6 +8,7 @@ from intentfence_contracts import (
     SourceContext,
     ToolRequest,
 )
+
 from intentfence_api.semantic.models import SemanticRecommendation, SemanticSource
 
 
