@@ -61,7 +61,7 @@ def _has_critical_label(data_labels: Sequence[DataLabel]) -> bool:
 
 
 class BaselineSecurityAdapter:
-    """Conservative Phase 6 fallback until dedicated Phase 2-4 adapters land."""
+    """Conservative compatibility/test fixture for focused Phase 6 baseline behavior."""
 
     def evaluate(
         self,

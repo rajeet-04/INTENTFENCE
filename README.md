@@ -15,6 +15,17 @@ IntentFence separates reasoning from authorization. It compiles the user's objec
 
 The current prototype includes the shared contracts, deterministic policy and classification, stateful authorization, purpose-bound data-flow controls, semantic intent evaluation, the protected-tool gateway, sanitized Action Receipts/security events, a FastAPI surface, a dashboard shell, and a controlled before/after prompt-injection demo.
 
+## Integration milestone
+
+**Phases 1–4 are integrated on `main`** and form the current merged security baseline:
+
+1. **Phase 1 — Foundation:** strict shared contracts, API boundaries, persistence primitives, and fail-closed validation.
+2. **Phase 2 — Deterministic security:** resource/destination classification, policy rules, hard blocks, approval rules, and risk aggregation.
+3. **Phase 3 — Stateful authorization:** bounded security context, action-chain analysis, accumulated risk, and intent-drift signals.
+4. **Phase 4 — Purpose-bound data flow:** provenance-aware labels, controlled propagation, destination constraints, and fail-closed egress enforcement.
+
+The protected-tool gateway uses the canonical Phase 2 policy, Phase 3 state, and Phase 4 data-flow adapters. Phase 5 semantic evaluation and Phase 6 gateway/demo capabilities remain implemented prototype layers built on this integrated baseline.
+
 ## Submission snapshot
 
 | Module | Status | Evidence |
