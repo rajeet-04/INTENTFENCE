@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - "rajeet/**"
+      - "ayushman/**"
+      - "deepali/**"
+      - "anwesh/**"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-bootstrap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+      - name: Install backend packages
+        run: python -m pip install -e ./packages/contracts -e "./apps/api[dev]"
+      - name: Verify package imports
+        run: python -c "import intentfence_api, intentfence_contracts; print('imports-ok')"
+      - name: Lint backend scaffold
+        run: python -m ruff check packages/contracts apps/api
