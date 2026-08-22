@@ -1,7 +1,6 @@
+from intentfence_contracts import ActionReceipt, SecurityContext
 from sqlalchemy import Engine
 from sqlalchemy.orm import Session
-
-from intentfence_contracts import ActionReceipt, SecurityContext
 
 from .db_models import ReceiptRecord, SecurityContextRecord
 
@@ -26,7 +25,9 @@ class ReceiptRepository:
     def get(self, receipt_id: str) -> ActionReceipt | None:
         with Session(self.engine) as session:
             record = session.get(ReceiptRecord, receipt_id)
-            return None if record is None else ActionReceipt.model_validate_json(record.payload_json)
+            if record is None:
+                return None
+            return ActionReceipt.model_validate_json(record.payload_json)
 
 
 class SecurityContextRepository:
@@ -48,4 +49,6 @@ class SecurityContextRepository:
     def get(self, session_id: str) -> SecurityContext | None:
         with Session(self.engine) as session:
             record = session.get(SecurityContextRecord, session_id)
-            return None if record is None else SecurityContext.model_validate_json(record.payload_json)
+            if record is None:
+                return None
+            return SecurityContext.model_validate_json(record.payload_json)
