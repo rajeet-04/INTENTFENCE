@@ -116,7 +116,12 @@ class IntentFenceGateway:
                 data_labels=data_labels,
             )
 
-        sensitive = self._is_sensitive(normalized.resource_class, sensitivity, security_context, request.tool)
+        sensitive = self._is_sensitive(
+            normalized.resource_class,
+            sensitivity,
+            security_context,
+            request.tool,
+        )
         decision = compose_decision(
             policy=policy,
             state_dataflow=state_dataflow,
