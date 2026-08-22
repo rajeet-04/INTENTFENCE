@@ -75,14 +75,11 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          node-version: "20"
+          bun-version: "1.4.0"
       - name: Install dashboard dependencies
-        run: npm --prefix apps/dashboard install --no-audit --no-fund
-      - name: Lint dashboard
-        run: npm --prefix apps/dashboard run lint
-      - name: Typecheck dashboard
-        run: npm --prefix apps/dashboard run typecheck
-      - name: Build dashboard
-        run: npm --prefix apps/dashboard run build
+        working-directory: apps/dashboard
+        run: bun install --frozen-lockfile
+      - name: Verify dashboard
+        run: make test-frontend

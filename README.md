@@ -2,7 +2,42 @@
 
 **Runtime authorization for autonomous AI agents.** IntentFence converts a user's delegated objective into a typed Intent Contract and places a fail-closed authorization boundary in front of protected agent actions.
 
-Phase 1 establishes the contracts, API boundary, persistence primitives, dashboard shell, and CI gates required before deterministic production policy is enabled. Phase 5 adds a model-independent semantic intent layer for ambiguous actions without giving an LLM root authorization authority. Phase 6 assembles the protected-tool interception gateway, Action Receipts, benchmark-ready security events, and the controlled before/after hotel attack demo.
+[![CI](https://github.com/rajeet-04/INTENTFENCE/actions/workflows/ci.yml/badge.svg)](https://github.com/rajeet-04/INTENTFENCE/actions/workflows/ci.yml)
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
+
+## Problem statement
+
+Autonomous agents can browse untrusted content and then invoke high-impact tools with the user's credentials. Prompt injection can exploit that path: a malicious page may ask an agent to read secrets, send data elsewhere, or take actions the user never authorized. Prompt-only defenses are not a reliable security boundary because the same model is asked both to interpret untrusted text and police its own behavior.
+
+## Solution
+
+IntentFence separates reasoning from authorization. It compiles the user's objective into a strict, versioned Intent Contract and places a protected-tool gateway between agent reasoning and execution. Deterministic policy, stateful action-chain analysis, purpose-bound data flow, and semantic relevance are implemented behind typed boundaries. The current `/authorize` path integrates deterministic policy and state; the gateway/demo uses a conservative baseline adapter while the dedicated Phase 2–4 gateway adapters are completed. Hard rules remain authoritative, and uncertainty fails closed to approval instead of silently executing.
+
+The current prototype includes the shared contracts, deterministic policy and classification, stateful authorization, purpose-bound data-flow controls, semantic intent evaluation, the protected-tool gateway, sanitized Action Receipts/security events, a FastAPI surface, a dashboard shell, and a controlled before/after prompt-injection demo.
+
+## Submission snapshot
+
+| Module | Status | Evidence |
+| --- | --- | --- |
+| Typed Intent Contracts and security models | Implemented | `packages/contracts` |
+| Resource, destination, and authority classification | Implemented; used by `/authorize` | `packages/classification` |
+| Deterministic fail-closed policy | Implemented; used by `/authorize` | `packages/policy` |
+| Stateful action-chain authorization | Implemented; used by `/authorize` | `packages/state` |
+| Purpose-bound data-flow enforcement | Implemented and tested; gateway adapter pending | `packages/dataflow` |
+| Local/hybrid semantic intent layer | Implemented; Ollama optional | `apps/api/src/intentfence_api/semantic` |
+| Protected-tool interception and receipts | Implemented with conservative baseline enforcement | `apps/api/src/intentfence_api/gateway` |
+| Golden hotel prompt-injection comparison | Implemented | `POST /demo/hotel-attack` |
+| Security dashboard | Prototype shell | `apps/dashboard` |
+| Automated verification | 227 backend tests plus lint, typecheck, and production build | `make verify` and `.github/workflows/ci.yml` |
+
+Deployment is intentionally out of scope for this evaluation round; the repository runs locally and is designed to be directly reviewable.
+
+## Tech stack
+
+- Python 3.12, FastAPI, Pydantic, SQLAlchemy, HTTPX, Pytest, and Ruff
+- Next.js 15, React 19, and TypeScript
+- uv for Python/runtime management and Bun for dashboard dependencies/scripts
+- SQLite for local persistence and optional Ollama for local semantic evaluation
 
 ## Security invariants
 
@@ -15,7 +50,7 @@ Phase 1 establishes the contracts, API boundary, persistence primitives, dashboa
 - Sensitive gateway paths fail closed when a required security component is unavailable.
 - Raw chain-of-thought, raw provider output, raw tool payloads, and secret-bearing request values are not part of receipts or analytics events.
 
-## Phase 1 security guarantees
+## Contract and authorization guarantees
 
 - Every shared security object is validated with strict Pydantic models.
 - Unknown contract fields are rejected.
@@ -24,9 +59,8 @@ Phase 1 establishes the contracts, API boundary, persistence primitives, dashboa
 - `/authorize` blocks session mismatches, intent mismatches, and expired Intent Contracts.
 - External content is represented as source context, not authorization authority.
 - Action Receipts and SecurityContext state can be persisted through SQLite.
-- The boundary fails closed while Phase 2 policy is absent.
-
-> The Phase 1 placeholder authorizer intentionally never returns production `ALLOW`. Deterministic production authorization belongs to the policy layer; the Phase 5 semantic layer is advisory and does not replace it.
+- `/authorize` evaluates the integrated deterministic policy and state engine.
+- The semantic layer remains advisory and cannot replace deterministic authorization.
 
 ## Phase 5 semantic intent layer
 
@@ -51,7 +85,7 @@ Phase 6 exposes exactly five protected core tools:
 - `send_message`
 - `http_request`
 
-The gateway normalizes every protected request into the shared `ToolRequest` contract, enriches it with resource and destination metadata, composes deterministic/state/data-flow and optional semantic signals, executes the handler only after `ALLOW`, and emits both an `ActionReceipt` and metadata-only `SecurityEvent`.
+The gateway normalizes every protected request into the shared `ToolRequest` contract, enriches it with resource and destination metadata, composes policy/state-data-flow adapter signals and an optional semantic signal, executes the handler only after `ALLOW`, and emits both an `ActionReceipt` and metadata-only `SecurityEvent`.
 
 Decision precedence is intentionally conservative:
 
@@ -63,7 +97,7 @@ Decision precedence is intentionally conservative:
 
 A semantic `ALLOW` cannot override a hard block or approval requirement.
 
-Until the dedicated Phase 2, Phase 3, and Phase 4 adapters are merged, Phase 6 uses `BaselineSecurityAdapter` as a conservative integration fallback. It blocks forbidden secret access, critical data to unknown external destinations, and secret-read to external-transmission sequences. The gateway exposes narrow adapter protocols so final teammate implementations can replace the fallback without changing tool or receipt contracts.
+The dedicated Phase 2–4 packages are present and tested, but their final gateway adapters are still pending. The default gateway therefore uses `BaselineSecurityAdapter` as a conservative integration fallback. It blocks forbidden secret access, critical data to unknown external destinations, and secret-read to external-transmission sequences. Narrow adapter protocols allow the dedicated implementations to replace this fallback without changing tool or receipt contracts.
 
 ### Golden hotel attack
 
@@ -139,6 +173,10 @@ apps/
   dashboard/    Next.js dashboard foundation
 packages/
   contracts/    Shared typed security contracts
+  classification/ Resource, destination, and authority classification
+  policy/       Deterministic authorization rules and risk aggregation
+  state/        Stateful action-chain authorization and drift signals
+  dataflow/     Purpose-bound labels, propagation, and egress constraints
 docs/
   phase-6-analytics-contract.md
   superpowers/  Approved architecture and execution plans
@@ -146,26 +184,24 @@ docs/
 
 ## Prerequisites
 
-- Python 3.12
-- Node.js 20+
-- npm
+- [uv](https://docs.astral.sh/uv/) (provisions Python 3.12 automatically)
+- [Bun](https://bun.com/) 1.4.0 (the version pinned in CI)
 
-## Backend setup
+## Quick start
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -e ./packages/contracts -e "./apps/api[dev]"
+make setup
 cp .env.example .env
-uvicorn intentfence_api.app:app --app-dir apps/api/src --reload --port 8000
+make dev-api
 ```
 
-Windows PowerShell activation:
+In a second terminal:
 
-```powershell
-.venv\Scripts\Activate.ps1
+```bash
+make dev-dashboard
 ```
+
+The API is available at `http://127.0.0.1:8000`, interactive API documentation at `http://127.0.0.1:8000/docs`, and the dashboard at `http://localhost:3000`.
 
 Health check:
 
@@ -185,31 +221,48 @@ Run the controlled hotel comparison demo:
 curl -X POST http://127.0.0.1:8000/demo/hotel-attack
 ```
 
-## Dashboard setup
+The response runs the same five-step tool sequence with protection disabled and enabled. Review `secret_read_executed`, `exfiltration_executed`, `legitimate_workflow_completed`, decisions, receipt IDs, and sanitized security events to see the enforcement difference.
+
+## Manual setup
+
+Backend:
 
 ```bash
-npm --prefix apps/dashboard install
-npm --prefix apps/dashboard run dev
+uv python install 3.12
+uv venv --python 3.12 .venv
+uv pip install --python .venv/bin/python \
+  -e ./packages/contracts \
+  -e ./packages/classification \
+  -e ./packages/policy \
+  -e ./packages/state \
+  -e "./packages/dataflow[dev]" \
+  -e "./apps/api[dev]"
 ```
 
-By default the dashboard probes `http://localhost:8000/health`. Override it with `NEXT_PUBLIC_API_BASE_URL` when needed.
+Dashboard:
+
+```bash
+cd apps/dashboard
+bun install --frozen-lockfile
+bun run dev
+```
+
+By default the dashboard probes `http://localhost:8000/health`. Override it with `NEXT_PUBLIC_API_BASE_URL` when needed. Ollama and all cloud providers are optional; the automated tests do not make external model calls.
 
 ## Verification
 
 Run the same gates used by CI:
 
 ```bash
-python -m ruff check packages/contracts apps/api
-python -m pytest packages/contracts/tests apps/api/tests -q
-npm --prefix apps/dashboard run lint
-npm --prefix apps/dashboard run typecheck
-npm --prefix apps/dashboard run build
+make verify
 ```
+
+Verified on 2026-08-22: 227 backend tests passing; backend lint, dashboard lint, TypeScript checks, and the optimized Next.js production build complete successfully.
 
 Phase 6 focused tests:
 
 ```bash
-python -m pytest apps/api/tests/test_gateway_models.py \
+.venv/bin/python -m pytest apps/api/tests/test_gateway_models.py \
   apps/api/tests/test_gateway_tools.py \
   apps/api/tests/test_gateway_precedence.py \
   apps/api/tests/test_gateway_baseline.py \
@@ -234,7 +287,7 @@ Accepts:
 - `IntentContract`
 - `SecurityContext`
 
-Returns the Phase 1 typed fail-closed `Decision`. This endpoint is preserved for regression compatibility while Phase 6 integration occurs through the dedicated gateway surface.
+Returns a typed fail-closed `Decision` from the integrated deterministic policy and state engine. The dedicated gateway surface handles protected-tool execution and receipt emission.
 
 ### `POST /gateway/intercept`
 
