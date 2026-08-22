@@ -13,6 +13,7 @@ SENSITIVITY_RANK: dict[Sensitivity, int] = {
 }
 
 EGRESS_RESTRICTED_SENSITIVITIES = frozenset({Sensitivity.CONFIDENTIAL, Sensitivity.CRITICAL})
+CREDENTIAL_DATA_TYPES = frozenset({"API_KEY", "PASSWORD"})
 
 METADATA_OVERRIDE_FIELDS = ("provenance", "purpose", "owner", "source", "source_class")
 
@@ -65,6 +66,16 @@ class ConflictingPurposeError(PropagationError):
         super().__init__(
             "Sensitive source labels carry conflicting purposes and require explicit "
             f"authorized rebinding: {', '.join(self.purposes)}"
+        )
+
+
+class ProtectedDataTypeRewriteError(PropagationError):
+    def __init__(self, source_types: set[str], requested: str) -> None:
+        self.source_types = sorted(source_types)
+        self.requested = requested
+        super().__init__(
+            "Credential data classification cannot be rewritten by a controlled transformation: "
+            f"source={','.join(self.source_types)} requested={requested}"
         )
 
 
@@ -145,6 +156,20 @@ def _resolve_derived_purpose(sources: Sequence[DataLabel]) -> str:
     return next(iter(purposes))
 
 
+def _resolve_derived_data_type(sources: Sequence[DataLabel], requested: str) -> str:
+    credential_types = {
+        label.data_type.strip().upper()
+        for label in sources
+        if label.data_type.strip().upper() in CREDENTIAL_DATA_TYPES
+    }
+    if not credential_types:
+        return requested
+    requested_type = requested.strip().upper()
+    if len(credential_types) != 1 or requested_type not in credential_types:
+        raise ProtectedDataTypeRewriteError(credential_types, requested_type)
+    return requested_type
+
+
 def propagate(
     sources: Sequence[DataLabel],
     *,
@@ -175,7 +200,7 @@ def propagate(
     lineage = _dedupe([ref for parent in sources for ref in (parent.data_id, *parent.derived_from)])
     return DataLabel(
         data_id=data_id,
-        data_type=data_type,
+        data_type=_resolve_derived_data_type(sources, data_type),
         source=highest.source,
         source_class=highest.source_class,
         provenance=highest.provenance,
