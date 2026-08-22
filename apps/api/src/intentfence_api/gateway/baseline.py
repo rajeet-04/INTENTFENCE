@@ -25,7 +25,10 @@ _EXTERNAL_SOURCES = {
 _NETWORK_TOOLS = {"http_request", "send_message"}
 
 
-def classify_destination(destination: str | None, contract: IntentContract) -> DestinationClass | None:
+def classify_destination(
+    destination: str | None,
+    contract: IntentContract,
+) -> DestinationClass | None:
     if destination is None:
         return None
     normalized = destination.lower().strip()
@@ -70,7 +73,11 @@ class BaselineSecurityAdapter:
         destination: str | None,
         data_labels: Sequence[DataLabel] = (),
     ) -> ComponentDecision:
-        if request.session_id != intent_contract.session_id or request.intent_id != intent_contract.intent_id:
+        identity_mismatch = (
+            request.session_id != intent_contract.session_id
+            or request.intent_id != intent_contract.intent_id
+        )
+        if identity_mismatch:
             return _decision(
                 DecisionType.BLOCK,
                 "Request identity does not match the active Intent Contract.",
@@ -79,23 +86,11 @@ class BaselineSecurityAdapter:
                 hard_block=True,
             )
 
-        if request.tool not in intent_contract.allowed_tools:
-            if request.tool in intent_contract.approval_required_actions:
-                return _decision(
-                    DecisionType.REQUIRE_APPROVAL,
-                    "This consequential action is outside the current delegated tool boundary.",
-                    rule="TOOL_REQUIRES_APPROVAL",
-                    risk=0.7,
-                )
-            return _decision(
-                DecisionType.REQUIRE_APPROVAL,
-                "The requested tool is not explicitly authorized by the active Intent Contract.",
-                rule="TOOL_NOT_AUTHORIZED",
-                risk=0.65,
-            )
-
         if resource_class in {ResourceClass.SECRET, ResourceClass.CREDENTIAL}:
-            external_trigger = request.source_context in _EXTERNAL_SOURCES or security_context.untrusted_content_seen
+            external_trigger = (
+                request.source_context in _EXTERNAL_SOURCES
+                or security_context.untrusted_content_seen
+            )
             if external_trigger:
                 return _decision(
                     DecisionType.BLOCK,
@@ -136,6 +131,21 @@ class BaselineSecurityAdapter:
                     risk=1.0,
                     hard_block=True,
                 )
+
+        if request.tool not in intent_contract.allowed_tools:
+            if request.tool in intent_contract.approval_required_actions:
+                return _decision(
+                    DecisionType.REQUIRE_APPROVAL,
+                    "This consequential action is outside the current delegated tool boundary.",
+                    rule="TOOL_REQUIRES_APPROVAL",
+                    risk=0.7,
+                )
+            return _decision(
+                DecisionType.REQUIRE_APPROVAL,
+                "The requested tool is not explicitly authorized by the active Intent Contract.",
+                rule="TOOL_NOT_AUTHORIZED",
+                risk=0.65,
+            )
 
         if request.tool in intent_contract.approval_required_actions:
             return _decision(
