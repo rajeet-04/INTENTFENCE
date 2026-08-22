@@ -28,6 +28,7 @@ class SandboxProtectedToolRuntime:
         allowed_http_hosts: Iterable[str] = (),
     ) -> None:
         self._temporary_directory: tempfile.TemporaryDirectory[str] | None = None
+        self._strict_fixtures = environment is not None
         if environment is None:
             self._temporary_directory = tempfile.TemporaryDirectory(
                 prefix="intentfence-sandbox-"
@@ -83,7 +84,14 @@ class SandboxProtectedToolRuntime:
         path = arguments.get("path")
         if not isinstance(path, str) or not path.strip():
             raise ValueError("read_file requires a path")
-        content = self.environment.read_fixture(path.strip())
+        relative_path = path.strip()
+        target = self.environment.resolve(relative_path)
+        if not target.exists() and not self._strict_fixtures:
+            self.environment.write_fixture(
+                relative_path,
+                f"Synthetic controlled fixture for {relative_path}\n",
+            )
+        content = self.environment.read_fixture(relative_path)
         data_ref = self.environment.store_payload(content)
         return {
             "status": "read",
@@ -95,14 +103,22 @@ class SandboxProtectedToolRuntime:
         path = arguments.get("path")
         if not isinstance(path, str) or not path.strip():
             raise ValueError("write_file requires a path")
+        raw_content = arguments.get("content")
         content_ref = arguments.get("content_ref")
-        if isinstance(content_ref, str) and content_ref:
-            content = self.environment.payload(content_ref)
-        else:
-            raw_content = arguments.get("content", "")
-            if not isinstance(raw_content, str):
-                raise ValueError("write_file content must be text")
+        if isinstance(raw_content, str):
             content = raw_content
+        elif isinstance(content_ref, str) and content_ref:
+            if self._strict_fixtures:
+                content = self.environment.payload(content_ref)
+            else:
+                try:
+                    content = self.environment.payload(content_ref)
+                except ValueError:
+                    content = f"Synthetic controlled payload reference: {content_ref}\n"
+        elif raw_content is None:
+            content = ""
+        else:
+            raise ValueError("write_file content must be text")
         target = self.environment.write_fixture(path.strip(), content)
         return {
             "status": "written",
