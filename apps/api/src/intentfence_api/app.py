@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from intentfence_contracts import Decision
 
+from .benchmarks import latest_benchmark_payload
 from .config import get_settings
 from .gateway.adapters import Phase5SemanticAdapter
 from .gateway.demo import HotelAttackComparison, run_hotel_attack_demo
@@ -38,6 +39,11 @@ app.add_middleware(
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "service": "intentfence-api"}
+
+
+@app.get("/benchmarks/latest")
+def latest_benchmark() -> dict:
+    return latest_benchmark_payload(settings.database_url)
 
 
 @app.post("/authorize", response_model=Decision)

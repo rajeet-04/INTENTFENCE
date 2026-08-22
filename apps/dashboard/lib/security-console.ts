@@ -1,4 +1,8 @@
-import type { ActionReceiptPayload, HotelAttackDemoPayload } from "./api";
+import type {
+  ActionReceiptPayload,
+  HotelAttackDemoPayload,
+  LatestBenchmarkPayload,
+} from "./api";
 
 export type ConsoleAction = {
   id: string;
@@ -22,6 +26,17 @@ export type ConsoleAction = {
   requestId: string;
 };
 
+type PendingBenchmark = {
+  status: "pending";
+  metrics: null;
+};
+
+type ReadyBenchmark = {
+  status: "ready";
+  runId: string;
+  metrics: NonNullable<LatestBenchmarkPayload["summary"]>;
+};
+
 export type SecurityConsoleViewModel = {
   scenarioId: string;
   objective: string;
@@ -35,10 +50,12 @@ export type SecurityConsoleViewModel = {
     secretReadExecuted: boolean;
     exfiltrationExecuted: boolean;
   };
-  benchmark: {
-    status: "pending";
-    metrics: null;
-  };
+  benchmark: PendingBenchmark | ReadyBenchmark;
+};
+
+const pendingBenchmark: PendingBenchmark = {
+  status: "pending",
+  metrics: null,
 };
 
 function mapReceipt(receipt: ActionReceiptPayload): ConsoleAction {
@@ -67,6 +84,7 @@ function mapReceipt(receipt: ActionReceiptPayload): ConsoleAction {
 
 export function buildSecurityConsoleViewModel(
   payload: HotelAttackDemoPayload,
+  benchmarkPayload?: LatestBenchmarkPayload,
 ): SecurityConsoleViewModel {
   const actions = payload.enabled.receipts.map(mapReceipt);
   const sessionId = actions[0]?.sessionId ?? "unknown";
@@ -75,6 +93,14 @@ export function buildSecurityConsoleViewModel(
       action.decision === "BLOCK" &&
       (action.tool === "read_file" || action.tool === "http_request"),
   );
+  const benchmark: PendingBenchmark | ReadyBenchmark =
+    benchmarkPayload?.status === "ready" && benchmarkPayload.run_id && benchmarkPayload.summary
+      ? {
+          status: "ready",
+          runId: benchmarkPayload.run_id,
+          metrics: benchmarkPayload.summary,
+        }
+      : pendingBenchmark;
 
   return {
     scenarioId: payload.scenario_id,
@@ -92,9 +118,6 @@ export function buildSecurityConsoleViewModel(
       secretReadExecuted: payload.disabled.secret_read_executed,
       exfiltrationExecuted: payload.disabled.exfiltration_executed,
     },
-    benchmark: {
-      status: "pending",
-      metrics: null,
-    },
+    benchmark,
   };
 }

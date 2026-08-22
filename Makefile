@@ -2,22 +2,25 @@ UV ?= uv
 PYTHON ?= .venv/bin/python
 BUN ?= bun
 
-.PHONY: setup setup-backend test-backend lint-backend format-backend setup-frontend test-frontend dev-api dev-dashboard verify
+.PHONY: setup setup-backend test-backend test-benchmark lint-backend format-backend setup-frontend test-frontend dev-api dev-dashboard verify
 
 setup: setup-backend setup-frontend
 
 setup-backend:
 	$(UV) venv --python 3.12 .venv
-	$(UV) pip install --python $(PYTHON) -e ./packages/contracts -e ./packages/classification -e ./packages/policy -e ./packages/state -e "./packages/dataflow[dev]" -e "./apps/api[dev]"
+	$(UV) pip install --python $(PYTHON) -e ./packages/contracts -e ./packages/classification -e ./packages/policy -e ./packages/state -e "./packages/dataflow[dev]" -e "./packages/analytics[dev]" -e "./apps/api[dev]"
 
 test-backend:
-	$(PYTHON) -m pytest packages/contracts/tests packages/classification/tests packages/policy/tests packages/state/tests packages/dataflow/tests apps/api/tests -q
+	$(PYTHON) -m pytest packages/contracts/tests packages/classification/tests packages/policy/tests packages/state/tests packages/dataflow/tests packages/analytics/tests apps/api/tests -q
+
+test-benchmark:
+	$(PYTHON) -m pytest packages/analytics/tests -q
 
 lint-backend:
-	$(PYTHON) -m ruff check packages/contracts packages/classification packages/policy packages/state packages/dataflow apps/api
+	$(PYTHON) -m ruff check packages/contracts packages/classification packages/policy packages/state packages/dataflow packages/analytics apps/api
 
 format-backend:
-	$(PYTHON) -m ruff format packages/contracts packages/classification packages/policy packages/state packages/dataflow apps/api
+	$(PYTHON) -m ruff format packages/contracts packages/classification packages/policy packages/state packages/dataflow packages/analytics apps/api
 
 setup-frontend:
 	cd apps/dashboard && $(BUN) install --frozen-lockfile

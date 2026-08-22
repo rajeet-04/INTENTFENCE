@@ -68,6 +68,52 @@ export type HotelAttackDemoPayload = {
   enabled: DemoRunPayload;
 };
 
+export type BenchmarkMetricPayload = {
+  value: number | null;
+  numerator: number;
+  denominator: number;
+  target: number;
+  comparison: ">=" | "<";
+  met: boolean;
+};
+
+export type BenchmarkSummaryPayload = {
+  run_ids: string[];
+  scenario_count: number;
+  total_events: number;
+  headline_kpis: {
+    attack_blocking_rate: BenchmarkMetricPayload;
+    safe_task_completion_rate: BenchmarkMetricPayload;
+    false_positive_rate: BenchmarkMetricPayload;
+    scored_events: number;
+    excluded_events_without_ground_truth: number;
+    malicious_action_count: number;
+    benign_action_count: number;
+    benign_workflow_count: number;
+    benign_workflows_awaiting_approval: number;
+  };
+  driver_metrics: {
+    deterministic_decision_share: number | null;
+    semantic_decision_share: number | null;
+    cloud_escalation_share: number | null;
+    approval_share: number | null;
+    action_chain_block_count: number;
+    mutated_attack_blocking_rate: number | null;
+    block_count_by_rule_id: Record<string, number>;
+  };
+  guardrails: {
+    deterministic_p95_latency_ms: number | null;
+    semantic_p95_latency_ms: number | null;
+    false_negative_rate: number | null;
+  };
+};
+
+export type LatestBenchmarkPayload = {
+  status: "pending" | "ready";
+  run_id: string | null;
+  summary: BenchmarkSummaryPayload | null;
+};
+
 export function getApiBaseUrl(): string {
   return process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 }
@@ -104,4 +150,21 @@ export async function fetchHotelAttackDemo(
   }
 
   return (await response.json()) as HotelAttackDemoPayload;
+}
+
+export async function fetchLatestBenchmarkSummary(
+  signal?: AbortSignal,
+): Promise<LatestBenchmarkPayload> {
+  const response = await fetch(`${getApiBaseUrl()}/benchmarks/latest`, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+    signal,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Benchmark API returned ${response.status}`);
+  }
+
+  return (await response.json()) as LatestBenchmarkPayload;
 }

@@ -2,7 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { fetchHotelAttackDemo, type Decision } from "@/lib/api";
+import {
+  fetchHotelAttackDemo,
+  fetchLatestBenchmarkSummary,
+  type Decision,
+  type LatestBenchmarkPayload,
+} from "@/lib/api";
 import {
   buildSecurityConsoleViewModel,
   type ConsoleAction,
@@ -18,6 +23,12 @@ import { SessionOverview } from "./SessionOverview";
 
 type DecisionFilter = "ALL" | Decision;
 
+const pendingBenchmark: LatestBenchmarkPayload = {
+  status: "pending",
+  run_id: null,
+  summary: null,
+};
+
 export function SecurityConsole() {
   const [view, setView] = useState<SecurityConsoleViewModel | null>(null);
   const [selectedId, setSelectedId] = useState("");
@@ -27,10 +38,13 @@ export function SecurityConsole() {
 
   useEffect(() => {
     const controller = new AbortController();
+    const benchmarkRequest = fetchLatestBenchmarkSummary(controller.signal).catch(
+      () => pendingBenchmark,
+    );
 
-    fetchHotelAttackDemo(controller.signal)
-      .then((payload) => {
-        const nextView = buildSecurityConsoleViewModel(payload);
+    Promise.all([fetchHotelAttackDemo(controller.signal), benchmarkRequest])
+      .then(([payload, benchmarkPayload]) => {
+        const nextView = buildSecurityConsoleViewModel(payload, benchmarkPayload);
         setView(nextView);
         const blocked = nextView.actions.find((action) => action.decision === "BLOCK");
         setSelectedId(blocked?.id ?? nextView.actions[0]?.id ?? "");
