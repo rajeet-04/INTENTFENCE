@@ -21,7 +21,7 @@ concurrency:
 jobs:
   backend:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -34,7 +34,55 @@ jobs:
         run: python -m pip install -e ./packages/contracts -e "./apps/api[dev]"
       - name: Lint backend
         run: python -m ruff check packages/contracts apps/api
-      - name: Contract tests
-        run: python -m pytest packages/contracts/tests -q
-      - name: API tests
-        run: python -m pytest apps/api/tests -q
+      - name: Test backend
+        run: python -m pytest packages/contracts/tests apps/api/tests -q
+      - name: Verify configured SQLite database
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from intentfence_api.db import create_db_engine, init_db
+
+          path = Path("phase1-ci.sqlite")
+          engine = create_db_engine(f"sqlite:///{path}")
+          init_db(engine)
+          assert path.exists(), "SQLite database was not created"
+          engine.dispose()
+          path.unlink()
+          print("sqlite-file-ok")
+          PY
+      - name: Smoke test API health endpoint
+        run: |
+          uvicorn intentfence_api.app:app --app-dir apps/api/src --host 127.0.0.1 --port 8000 > /tmp/intentfence-api.log 2>&1 &
+          API_PID=$!
+          trap 'kill "$API_PID" 2>/dev/null || true' EXIT
+          for attempt in {1..20}; do
+            if curl --fail --silent http://127.0.0.1:8000/health > /tmp/health.json; then
+              break
+            fi
+            sleep 0.5
+          done
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          payload = json.loads(Path("/tmp/health.json").read_text())
+          assert payload == {"status": "ok", "service": "intentfence-api"}, payload
+          print("api-health-ok")
+          PY
+
+  dashboard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install dashboard dependencies
+        run: npm --prefix apps/dashboard install --no-audit --no-fund
+      - name: Lint dashboard
+        run: npm --prefix apps/dashboard run lint
+      - name: Typecheck dashboard
+        run: npm --prefix apps/dashboard run typecheck
+      - name: Build dashboard
+        run: npm --prefix apps/dashboard run build
