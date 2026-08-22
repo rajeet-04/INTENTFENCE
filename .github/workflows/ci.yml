@@ -19,7 +19,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  backend-contracts:
+  backend:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -36,3 +36,5 @@ jobs:
         run: python -m ruff check packages/contracts apps/api
       - name: Contract tests
         run: python -m pytest packages/contracts/tests/test_models.py -q
+      - name: API tests
+        run: python -m pytest apps/api/tests/test_app.py -q
