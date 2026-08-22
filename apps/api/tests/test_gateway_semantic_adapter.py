@@ -10,6 +10,7 @@ from intentfence_contracts import (
     SourceContext,
     ToolRequest,
 )
+
 from intentfence_api.gateway.adapters import Phase5SemanticAdapter
 from intentfence_api.semantic import (
     SemanticEvaluation,
