@@ -146,13 +146,14 @@ def test_deterministic_require_approval_never_invokes_semantic() -> None:
     assert calls == []
 
 
-def test_phase5_semantic_block_stops_deterministically_allowed_request_and_surfaces_metadata() -> None:
+def test_phase5_semantic_block_stops_allowed_request_and_surfaces_metadata() -> None:
+    semantic_reason = "The requested browse is not relevant to the active hotel comparison."
     judge = CountingJudge(
         _semantic_result(
             SemanticRecommendation.BLOCK,
             relevance=0.08,
             confidence=0.96,
-            reason="The requested browse is not relevant to the active hotel comparison.",
+            reason=semantic_reason,
             reason_code="SEMANTIC_INTENT_MISMATCH",
         )
     )
@@ -171,7 +172,7 @@ def test_phase5_semantic_block_stops_deterministically_allowed_request_and_surfa
     assert result.decision is DecisionType.BLOCK
     assert result.executed is False
     assert calls == []
-    assert result.reason == "The requested browse is not relevant to the active hotel comparison."
+    assert result.reason == semantic_reason
     assert result.receipt.decision_source is DecisionSource.SEMANTIC_LOCAL
     assert result.receipt.semantic_relevance_score == 0.08
     assert result.receipt.semantic_confidence == 0.96
