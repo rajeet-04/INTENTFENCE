@@ -43,25 +43,32 @@ Final `/authorize` precedence integration is intentionally deferred until the de
 
 ## Local semantic model
 
-Ollama is optional and is **not required by CI**. The current local adapter defaults are:
+Ollama is optional and is **not required by CI**. The local adapter can be configured with these environment variables:
 
 ```text
-base URL: http://localhost:11434
-model:    qwen2.5:7b
-timeout:  5 seconds
+INTENTFENCE_SEMANTIC_OLLAMA_BASE_URL=http://localhost:11434
+INTENTFENCE_SEMANTIC_OLLAMA_MODEL=qwen2.5:7b
+INTENTFENCE_SEMANTIC_TIMEOUT_SECONDS=5
 ```
 
-The adapter is constructor-configured so later gateway/runtime wiring can supply deployment-specific settings without coupling the semantic engine to one host:
+The same defaults are included in `.env.example`. Runtime wiring can load them through the typed application settings:
 
 ```python
+from intentfence_api.config import get_settings
 from intentfence_api.semantic import OllamaProvider, StructuredSemanticJudge
 
+provider = OllamaProvider.from_settings(get_settings())
+judge = StructuredSemanticJudge(provider)
+```
+
+Direct constructor configuration remains available for tests and deployment-specific overrides:
+
+```python
 provider = OllamaProvider(
     base_url="http://localhost:11434",
     model="qwen2.5:7b",
     timeout_seconds=5.0,
 )
-judge = StructuredSemanticJudge(provider)
 ```
 
 Tests use `httpx.MockTransport`; they never contact a live model server. A cloud provider is also optional. `HybridSemanticJudge` accepts an injected cloud judge and escalates only when local confidence is below the configured threshold.
@@ -150,7 +157,7 @@ Verify the fail-closed endpoint specifically:
 python -m pytest apps/api/tests/test_authorize.py::test_authorize_endpoint_returns_typed_decision -q
 ```
 
-Semantic tests cover compact context, strict result validation, timeout/malformed/provider failure handling, Ollama request/response behavior, hybrid escalation, high-risk approval preservation, contract versioning, and operator-facing summaries.
+Semantic tests cover compact context, strict result validation, timeout/malformed/provider failure handling, Ollama request/response behavior, typed environment configuration, hybrid escalation, high-risk approval preservation, contract versioning, and operator-facing summaries.
 
 ## API surface
 
