@@ -1,1 +1,0 @@
-Draft PR CI is intentionally expected to fail only on missing production Phase 5 semantic wiring.
