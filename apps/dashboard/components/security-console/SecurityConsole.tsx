@@ -12,7 +12,6 @@ import {
 import { ActionTimeline } from "./ActionTimeline";
 import { AttackChain } from "./AttackChain";
 import { BenchmarkPanel } from "./BenchmarkPanel";
-import { DecisionBadge } from "./DecisionBadge";
 import { EvidencePanel } from "./EvidencePanel";
 import { ReceiptPanel } from "./ReceiptPanel";
 import { SessionOverview } from "./SessionOverview";
@@ -138,7 +137,9 @@ export function SecurityConsole() {
               onClick={() => setFilter(decision)}
               type="button"
             >
-              {decision === "REQUIRE_APPROVAL" ? "Approval" : decision.charAt(0) + decision.slice(1).toLowerCase()}
+              {decision === "REQUIRE_APPROVAL"
+                ? "Approval"
+                : decision.charAt(0) + decision.slice(1).toLowerCase()}
             </button>
           ))}
         </div>

@@ -5,8 +5,8 @@ const modulePath = "./security-console";
 type ConsoleMapper = (payload: Record<string, unknown>) => Record<string, unknown>;
 
 async function loadMapper(): Promise<ConsoleMapper | undefined> {
-  const module = (await import(modulePath).catch(() => ({}))) as Record<string, unknown>;
-  const mapper = module.buildSecurityConsoleViewModel;
+  const loadedModule = (await import(modulePath).catch(() => ({}))) as Record<string, unknown>;
+  const mapper = loadedModule.buildSecurityConsoleViewModel;
   return typeof mapper === "function" ? (mapper as ConsoleMapper) : undefined;
 }
 
