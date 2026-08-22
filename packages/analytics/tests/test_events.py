@@ -47,12 +47,31 @@ def test_store_roundtrip_preserves_all_fields(tmp_path):
         accumulated_risk=0.8,
         risk_score=1.0,
         chain_involved=True,
+        cloud_escalated=True,
+        workflow_completed=False,
+        completion_status="BLOCKED",
     )
     store.append(event)
     loaded = store.list_events()
     assert len(loaded) == 1
     restored = loaded[0]
     assert restored == event
+
+
+def test_store_roundtrip_preserves_workflow_outcome(tmp_path):
+    store = EventStore.from_url(f"sqlite:///{tmp_path / 'events.db'}")
+    store.append(
+        make_event(
+            ground_truth="MUST_ALLOW",
+            final_decision="ALLOW",
+            workflow_completed=True,
+            completion_status="COMPLETED",
+        )
+    )
+    restored = store.list_events()[0]
+    assert restored.workflow_completed is True
+    assert restored.completion_status.value == "COMPLETED"
+    assert restored.cloud_escalated is False
 
 
 def test_store_filters_by_run_id(tmp_path):

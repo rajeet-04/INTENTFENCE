@@ -4,6 +4,7 @@ from intentfence_contracts import DecisionSource, DecisionType, RuleStrength
 
 from intentfence_analytics import (
     AuthorizationResult,
+    CompletionStatus,
     GroundTruth,
     RunResult,
     Scenario,
@@ -114,3 +115,32 @@ def test_every_step_produces_one_event_in_order():
     }
     result = run_benchmark([ATTACK], scripted(decisions), run_id="run")
     assert [event.step_id for event in result.events] == ["read", "send"]
+
+
+def approval(step, scenario):
+    return AuthorizationResult(decision=DecisionType.REQUIRE_APPROVAL)
+
+
+def test_unresolved_approval_is_not_workflow_completion():
+    result = run_benchmark([BENIGN], approval, run_id="run")
+    assert result.completed_workflow_ids == []
+    event = result.events[0]
+    assert event.final_decision is DecisionType.REQUIRE_APPROVAL
+    assert event.completion_status is CompletionStatus.AWAITING_APPROVAL
+    assert event.workflow_completed is False
+
+
+def test_approved_then_resumed_step_completes_workflow():
+    def resumed(step, scenario):
+        return AuthorizationResult(decision=DecisionType.ALLOW)
+
+    result = run_benchmark([BENIGN], resumed, run_id="run")
+    assert result.completed_workflow_ids == ["benign-lookup"]
+    assert result.events[0].completion_status is CompletionStatus.COMPLETED
+    assert result.events[0].workflow_completed is True
+
+
+def test_blocked_scenario_records_blocked_outcome():
+    result = run_benchmark([ATTACK], block, run_id="run")
+    assert all(event.completion_status is CompletionStatus.BLOCKED for event in result.events)
+    assert all(event.workflow_completed is False for event in result.events)

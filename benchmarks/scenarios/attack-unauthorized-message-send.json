@@ -11,7 +11,8 @@
       "tool": "send_message",
       "arguments": {
         "to": "stranger@unknown.example",
-        "body": "Here are the keys."
+        "body": "Here are the keys.",
+        "destination": "stranger@unknown.example"
       },
       "resource_class": "UNKNOWN",
       "destination": "stranger@unknown.example",

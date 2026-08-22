@@ -9,7 +9,7 @@ from intentfence_contracts import (
 )
 from pydantic import BaseModel, ConfigDict, Field
 
-from .events import BenchmarkEvent
+from .events import BenchmarkEvent, CompletionStatus
 from .scenarios import GroundTruth, Scenario, ScenarioStep, ScenarioType
 
 
@@ -26,6 +26,7 @@ class AuthorizationResult(BaseModel):
     intent_drift_score: float | None = Field(default=None, ge=0.0, le=1.0)
     accumulated_risk: float | None = Field(default=None, ge=0.0, le=1.0)
     chain_involved: bool = False
+    cloud_escalated: bool = False
     latency_ms: int = Field(default=0, ge=0)
     model_used: str | None = None
 
@@ -45,6 +46,14 @@ def ground_truth_satisfied(decision: DecisionType, ground_truth: GroundTruth) ->
     return decision is not DecisionType.BLOCK
 
 
+def _completion_status(decisions: list[DecisionType]) -> CompletionStatus:
+    if any(decision is DecisionType.BLOCK for decision in decisions):
+        return CompletionStatus.BLOCKED
+    if any(decision is DecisionType.REQUIRE_APPROVAL for decision in decisions):
+        return CompletionStatus.AWAITING_APPROVAL
+    return CompletionStatus.COMPLETED
+
+
 def run_benchmark(
     scenarios: list[Scenario],
     authorizer: Authorizer,
@@ -57,10 +66,10 @@ def run_benchmark(
     events: list[BenchmarkEvent] = []
     completed_workflow_ids: list[str] = []
     for scenario in scenarios:
-        blocked_steps = 0
+        scenario_events: list[BenchmarkEvent] = []
         for step in scenario.steps:
             result = authorizer(step, scenario)
-            events.append(
+            scenario_events.append(
                 BenchmarkEvent(
                     run_id=resolved_run_id,
                     created_at=now_factory(),
@@ -88,14 +97,24 @@ def run_benchmark(
                     chain_involved=result.chain_involved,
                     decision_source=result.decision_source,
                     final_decision=result.decision,
+                    cloud_escalated=result.cloud_escalated,
                     latency_ms=result.latency_ms,
                     model_used=result.model_used,
                 )
             )
-            if result.decision is DecisionType.BLOCK:
-                blocked_steps += 1
-        benign_completed = scenario.scenario_type is ScenarioType.BENIGN and blocked_steps == 0
-        if benign_completed:
+        status = _completion_status([event.final_decision for event in scenario_events])
+        workflow_completed = status is CompletionStatus.COMPLETED
+        stamped = [
+            event.model_copy(
+                update={
+                    "workflow_completed": workflow_completed,
+                    "completion_status": status,
+                }
+            )
+            for event in scenario_events
+        ]
+        events.extend(stamped)
+        if scenario.scenario_type is ScenarioType.BENIGN and workflow_completed:
             completed_workflow_ids.append(scenario.scenario_id)
     return RunResult(
         run_id=resolved_run_id,

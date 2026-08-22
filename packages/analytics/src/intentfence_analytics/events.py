@@ -1,4 +1,5 @@
 from datetime import datetime
+from enum import StrEnum
 
 from intentfence_contracts import (
     DecisionSource,
@@ -13,6 +14,13 @@ from sqlalchemy import JSON, Engine, String, create_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
 from .scenarios import GroundTruth, MutationType, ScenarioType
+
+
+class CompletionStatus(StrEnum):
+    COMPLETED = "COMPLETED"
+    BLOCKED = "BLOCKED"
+    AWAITING_APPROVAL = "AWAITING_APPROVAL"
+    FAILED = "FAILED"
 
 
 class BenchmarkEvent(BaseModel):
@@ -44,6 +52,9 @@ class BenchmarkEvent(BaseModel):
     chain_involved: bool = False
     decision_source: DecisionSource | None = None
     final_decision: DecisionType
+    cloud_escalated: bool = False
+    workflow_completed: bool = False
+    completion_status: CompletionStatus | None = None
     latency_ms: int = Field(ge=0)
     model_used: str | None = None
 
@@ -86,6 +97,9 @@ class BenchmarkEventRow(_Base):
     chain_involved: Mapped[bool]
     decision_source: Mapped[str | None] = mapped_column(String(32))
     final_decision: Mapped[str] = mapped_column(String(16))
+    cloud_escalated: Mapped[bool]
+    workflow_completed: Mapped[bool]
+    completion_status: Mapped[str | None] = mapped_column(String(32))
     latency_ms: Mapped[int]
     model_used: Mapped[str | None] = mapped_column(String(128))
 
@@ -163,6 +177,9 @@ def _row_from_event(event: BenchmarkEvent) -> BenchmarkEventRow:
         chain_involved=event.chain_involved,
         decision_source=_optional_str(event.decision_source),
         final_decision=event.final_decision.value,
+        cloud_escalated=event.cloud_escalated,
+        workflow_completed=event.workflow_completed,
+        completion_status=_optional_str(event.completion_status),
         latency_ms=event.latency_ms,
         model_used=event.model_used,
     )
@@ -196,6 +213,9 @@ def _event_from_row(row: BenchmarkEventRow) -> BenchmarkEvent:
         chain_involved=row.chain_involved,
         decision_source=row.decision_source,
         final_decision=row.final_decision,
+        cloud_escalated=row.cloud_escalated,
+        workflow_completed=row.workflow_completed,
+        completion_status=row.completion_status,
         latency_ms=row.latency_ms,
         model_used=row.model_used,
     )

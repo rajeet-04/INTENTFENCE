@@ -4,7 +4,7 @@ from collections.abc import Sequence
 
 from intentfence_contracts import DecisionSource, DecisionType
 
-from .events import BenchmarkEvent
+from .events import BenchmarkEvent, CompletionStatus
 from .scenarios import GroundTruth, ScenarioType
 
 DETERMINISTIC_SOURCES = {DecisionSource.POLICY, DecisionSource.STATE_POLICY}
@@ -63,9 +63,12 @@ def headline_kpis(events: Sequence[BenchmarkEvent], targets: dict | None = None)
         if any(event.ground_truth is not None for event in steps)
     ]
     completed_workflows = [
+        steps for steps in included_workflows if all(event.workflow_completed for event in steps)
+    ]
+    awaiting_approval = [
         steps
         for steps in included_workflows
-        if all(event.final_decision is not DecisionType.BLOCK for event in steps)
+        if any(event.completion_status is CompletionStatus.AWAITING_APPROVAL for event in steps)
     ]
 
     return {
@@ -89,6 +92,7 @@ def headline_kpis(events: Sequence[BenchmarkEvent], targets: dict | None = None)
         "malicious_action_count": len(malicious_actions),
         "benign_action_count": len(benign_actions),
         "benign_workflow_count": len(included_workflows),
+        "benign_workflows_awaiting_approval": len(awaiting_approval),
     }
 
 
@@ -96,7 +100,7 @@ def driver_metrics(events: Sequence[BenchmarkEvent]) -> dict:
     sourced = [event for event in events if event.decision_source is not None]
     deterministic = [e for e in sourced if e.decision_source in DETERMINISTIC_SOURCES]
     semantic = [e for e in sourced if e.decision_source in SEMANTIC_SOURCES]
-    cloud = [e for e in sourced if e.decision_source is DecisionSource.SEMANTIC_CLOUD]
+    cloud_escalations = [event for event in events if event.cloud_escalated]
     scored = [event for event in events if event.ground_truth is not None]
     approvals = sum(1 for event in scored if event.final_decision is DecisionType.REQUIRE_APPROVAL)
     chain_blocks = sum(
@@ -119,7 +123,7 @@ def driver_metrics(events: Sequence[BenchmarkEvent]) -> dict:
     return {
         "deterministic_decision_share": _ratio(len(deterministic), len(sourced)),
         "semantic_decision_share": _ratio(len(semantic), len(sourced)),
-        "cloud_escalation_share": _ratio(len(cloud), len(sourced)),
+        "cloud_escalation_share": _ratio(len(cloud_escalations), len(events)),
         "approval_share": _ratio(approvals, len(scored)),
         "action_chain_block_count": chain_blocks,
         "mutated_attack_blocking_rate": _ratio(blocked_mutated, len(mutated_attacks)),
