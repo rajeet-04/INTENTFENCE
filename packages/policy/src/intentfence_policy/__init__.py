@@ -1,11 +1,12 @@
 """Deterministic policy engine and classifiers for IntentFence."""
 
-from .engine import ALLOW_REASON, evaluate_policy
+from .engine import ALLOW_REASON, evaluate_policy, evaluate_rules
 from .models import EvaluationContext, PolicyInput, PolicyResult, RuleOutcome
 from .risk import RiskTier, clamp01, combine_risk, risk_tier, state_risk_component, weighted_risk
 from .rules import (
     CONSEQUENTIAL_ACTION_UNAPPROVED_RULE_ID,
     CRITICAL_DATA_TO_UNTRUSTED_DESTINATION_RULE_ID,
+    DEFAULT_RULES,
     EXTERNAL_AUTHORITY_OVERRIDE_RULE_ID,
     FORBIDDEN_RESOURCE_RULE_ID,
     FORBIDDEN_TOOL_RULE_ID,
@@ -27,6 +28,7 @@ __all__ = [
     "ALLOW_REASON",
     "CONSEQUENTIAL_ACTION_UNAPPROVED_RULE_ID",
     "CRITICAL_DATA_TO_UNTRUSTED_DESTINATION_RULE_ID",
+    "DEFAULT_RULES",
     "EXTERNAL_AUTHORITY_OVERRIDE_RULE_ID",
     "FORBIDDEN_RESOURCE_RULE_ID",
     "FORBIDDEN_TOOL_RULE_ID",
@@ -50,6 +52,7 @@ __all__ = [
     "clamp01",
     "combine_risk",
     "evaluate_policy",
+    "evaluate_rules",
     "risk_tier",
     "state_risk_component",
     "weighted_risk",

@@ -18,10 +18,10 @@ def _decisive(outcomes: list[RuleOutcome], rules: tuple[PolicyRule, ...]) -> Rul
     )
 
 
-def evaluate_policy(
+def evaluate_rules(
+    rules: tuple[PolicyRule, ...] | list[PolicyRule],
     policy_input: PolicyInput,
     *,
-    rules: tuple[PolicyRule, ...] | list[PolicyRule] = DEFAULT_RULES,
     config: ClassifierConfig | None = None,
 ) -> PolicyResult:
     context = EvaluationContext.build(policy_input, config)
@@ -63,3 +63,12 @@ def evaluate_policy(
         destination=context.destination,
         destination_class=context.destination_class if context.destination else None,
     )
+
+
+def evaluate_policy(
+    policy_input: PolicyInput,
+    *,
+    rules: tuple[PolicyRule, ...] | list[PolicyRule] = DEFAULT_RULES,
+    config: ClassifierConfig | None = None,
+) -> PolicyResult:
+    return evaluate_rules(rules, policy_input, config=config)

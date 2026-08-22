@@ -1,16 +1,16 @@
 .PHONY: setup-backend test-backend lint-backend format-backend setup-frontend test-frontend dev-api dev-dashboard verify
 
 setup-backend:
-	python -m pip install -e ./packages/contracts -e ./packages/classification -e ./packages/policy -e "./apps/api[dev]"
+	python -m pip install -e ./packages/contracts -e ./packages/classification -e ./packages/policy -e ./packages/state -e "./apps/api[dev]"
 
 test-backend:
-	python -m pytest packages/contracts/tests packages/classification/tests packages/policy/tests apps/api/tests -q
+	python -m pytest packages/contracts/tests packages/classification/tests packages/policy/tests packages/state/tests apps/api/tests -q
 
 lint-backend:
-	python -m ruff check packages/contracts packages/classification packages/policy apps/api
+	python -m ruff check packages/contracts packages/classification packages/policy packages/state apps/api
 
 format-backend:
-	python -m ruff format packages/contracts packages/classification packages/policy apps/api
+	python -m ruff format packages/contracts packages/classification packages/policy packages/state apps/api
 
 setup-frontend:
 	npm --prefix apps/dashboard install

@@ -93,6 +93,7 @@ packages/
   contracts/        Shared typed security contracts
   classification/   Deterministic resource, destination, and provenance classifiers
   policy/           Deterministic policy rules, risk aggregation, PolicyResult
+  state/            SecurityContext lifecycle and action-chain analysis
 docs/
   superpowers/  Approved architecture and execution plans
 ```
@@ -130,6 +131,44 @@ assert result.decision in {"ALLOW", "BLOCK", "REQUIRE_APPROVAL"}
 
 Hard blocks always take precedence over approvals; approvals take precedence over `ALLOW`.
 
+## Phase 3 stateful authorization
+
+Phase 3 adds `intentfence_state`: deterministic, in-process security state that lets the chain — not just a single request — trigger enforcement.
+
+SecurityContext lifecycle (`record_action`):
+
+- pure function returning the next `SecurityContext`; only executed (`ALLOW`) actions mutate security-relevant facts such as `secret_accessed` and active data references;
+- blocked and pending attempts never mark secrets as accessed, but they still add attempt evidence to `accumulated_risk`;
+- compact bounded windows: at most 8 recent tools / chain entries and 16 active data references;
+- untrusted-content and unknown-destination flags are derived from executed action classifications.
+
+Action-chain analysis:
+
+- `parse_chain_entries`, `chain_tools`, `secret_access_in_chain`, and `external_transfer_in_chain` detect exfiltration chains from the compact `recent_action_chain` plus context flags.
+
+Stateful policy rules (composed after the Phase 2 static rules):
+
+- `STATE_SECRET_THEN_EXTERNAL_NETWORK`: secret access followed by an external network action is a hard block even when no labeled payload is attached;
+- `STATE_SECRET_THEN_MESSAGE_SEND`: secret access followed by a message send escalates the consequential-action approval to a hard block;
+- `STATE_ACCUMULATED_RISK_THRESHOLD`: repeated events whose risk accumulates past a configurable threshold (default `0.75`) fail closed to approval.
+
+The stateful engine composes cleanly with Phase 2:
+
+```python
+from intentfence_state import SessionStateTracker, evaluate_stateful_policy
+
+# One-shot evaluation over an existing SecurityContext:
+result = evaluate_stateful_policy(policy_input, config=classifier_config)
+
+# Or session-scoped evaluation that records each outcome:
+tracker = SessionStateTracker(security_context, config=classifier_config)
+decision = tracker.evaluate(request=tool_request, contract=intent_contract)
+```
+
+`SessionStateTracker.evaluate` returns the same typed `PolicyResult` as the static engine and then folds the outcome back into the tracker's `SecurityContext`. An optional `IntentDriftSignal` interface allows future phases to feed drift scores into evaluation without changing call sites.
+
+`POST /authorize` now evaluates requests through the combined static + stateful rule set: a chain can block its final action even when every intermediate step was individually allowed.
+
 ## Prerequisites
 
 - Python 3.12
@@ -142,7 +181,7 @@ Hard blocks always take precedence over approvals; approvals take precedence ove
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -e ./packages/contracts -e "./apps/api[dev]"
+python -m pip install -e ./packages/contracts -e ./packages/classification -e ./packages/policy -e ./packages/state -e "./apps/api[dev]"
 cp .env.example .env
 uvicorn intentfence_api.app:app --app-dir apps/api/src --reload --port 8000
 ```
@@ -179,8 +218,8 @@ By default the dashboard probes `http://localhost:8000/health`. Override it with
 Run the same gates used by CI:
 
 ```bash
-python -m ruff check packages/contracts packages/classification packages/policy apps/api
-python -m pytest packages/contracts/tests packages/classification/tests packages/policy/tests apps/api/tests -q
+python -m ruff check packages/contracts packages/classification packages/policy packages/state apps/api
+python -m pytest packages/contracts/tests packages/classification/tests packages/policy/tests packages/state/tests apps/api/tests -q
 npm --prefix apps/dashboard run lint
 npm --prefix apps/dashboard run typecheck
 npm --prefix apps/dashboard run build
@@ -199,6 +238,14 @@ python -m pytest packages/policy/tests -q
 ```
 
 Policy tests cover safe controls, every minimum hard rule, approval escalation, purpose-bound data, precedence between hard blocks and approvals, risk aggregation, and result determinism. No semantic model is required for these decisions.
+
+Verify the Phase 3 stateful authorization gate specifically:
+
+```bash
+python -m pytest packages/state/tests -q
+```
+
+State tests cover the SecurityContext lifecycle, compact bounded history, action-chain parsing and exfiltration detection, secret-then-network and secret-then-message hard blocks, accumulated-risk approval escalation, drift signal wiring, and proof that state can block a final action whose individual steps were each allowed.
 
 Semantic tests cover compact context, strict result validation, timeout/malformed/provider failure handling, Ollama request/response behavior, typed environment configuration, hybrid escalation, high-risk approval preservation, contract versioning, and operator-facing summaries.
 
