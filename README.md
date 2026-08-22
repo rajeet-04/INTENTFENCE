@@ -11,7 +11,7 @@ Autonomous agents can browse untrusted content and then invoke high-impact tools
 
 ## Solution
 
-IntentFence separates reasoning from authorization. It compiles the user's objective into a strict, versioned Intent Contract and places a protected-tool gateway between agent reasoning and execution. Deterministic policy, stateful action-chain analysis, purpose-bound data flow, and semantic relevance are implemented behind typed boundaries. The current `/authorize` path integrates deterministic policy and state; the gateway/demo uses a conservative baseline adapter while the dedicated Phase 2–4 gateway adapters are completed. Hard rules remain authoritative, and uncertainty fails closed to approval instead of silently executing.
+IntentFence separates reasoning from authorization. It compiles the user's objective into a strict, versioned Intent Contract and places a protected-tool gateway between agent reasoning and execution. Deterministic policy, stateful action-chain analysis, purpose-bound data flow, and semantic relevance are implemented behind typed boundaries. The `/authorize` path integrates deterministic policy and state, while the protected-tool gateway now composes the canonical Phase 2 policy, Phase 3 state, and Phase 4 data-flow engines before any optional semantic evaluation. Hard rules remain authoritative, and uncertainty fails closed to approval instead of silently executing.
 
 The current prototype includes the shared contracts, deterministic policy and classification, stateful authorization, purpose-bound data-flow controls, semantic intent evaluation, the protected-tool gateway, sanitized Action Receipts/security events, a FastAPI surface, a dashboard shell, and a controlled before/after prompt-injection demo.
 
@@ -20,15 +20,15 @@ The current prototype includes the shared contracts, deterministic policy and cl
 | Module | Status | Evidence |
 | --- | --- | --- |
 | Typed Intent Contracts and security models | Implemented | `packages/contracts` |
-| Resource, destination, and authority classification | Implemented; used by `/authorize` | `packages/classification` |
-| Deterministic fail-closed policy | Implemented; used by `/authorize` | `packages/policy` |
-| Stateful action-chain authorization | Implemented; used by `/authorize` | `packages/state` |
-| Purpose-bound data-flow enforcement | Implemented and tested; gateway adapter pending | `packages/dataflow` |
+| Resource, destination, and authority classification | Implemented; used by `/authorize` and gateway | `packages/classification` |
+| Deterministic fail-closed policy | Implemented; used by `/authorize` and gateway | `packages/policy` |
+| Stateful action-chain authorization | Implemented; used by `/authorize` and gateway | `packages/state` |
+| Purpose-bound data-flow enforcement | Implemented and integrated into the gateway | `packages/dataflow` |
 | Local/hybrid semantic intent layer | Implemented; Ollama optional | `apps/api/src/intentfence_api/semantic` |
-| Protected-tool interception and receipts | Implemented with conservative baseline enforcement | `apps/api/src/intentfence_api/gateway` |
+| Protected-tool interception and receipts | Implemented with canonical Phase 2–4 deterministic enforcement | `apps/api/src/intentfence_api/gateway` |
 | Golden hotel prompt-injection comparison | Implemented | `POST /demo/hotel-attack` |
 | Security dashboard | Prototype shell | `apps/dashboard` |
-| Automated verification | 227 backend tests plus lint, typecheck, and production build | `make verify` and `.github/workflows/ci.yml` |
+| Automated verification | 233 backend tests plus lint, typecheck, and production build | `make verify` and `.github/workflows/ci.yml` |
 
 Deployment is intentionally out of scope for this evaluation round; the repository runs locally and is designed to be directly reviewable.
 
@@ -97,7 +97,7 @@ Decision precedence is intentionally conservative:
 
 A semantic `ALLOW` cannot override a hard block or approval requirement.
 
-The dedicated Phase 2–4 packages are present and tested, but their final gateway adapters are still pending. The default gateway therefore uses `BaselineSecurityAdapter` as a conservative integration fallback. It blocks forbidden secret access, critical data to unknown external destinations, and secret-read to external-transmission sequences. Narrow adapter protocols allow the dedicated implementations to replace this fallback without changing tool or receipt contracts.
+The default gateway now uses dedicated adapters for the canonical Phase 2 deterministic policy and the composed Phase 3 state plus Phase 4 data-flow engines. Controlled data references resolve through the Phase 4 registry and fail closed when unknown or duplicated. Semantic evaluation is invoked only when every deterministic layer returns `ALLOW`. `BaselineSecurityAdapter` remains as a focused compatibility/test fixture rather than the default enforcement path.
 
 ### Golden hotel attack
 
@@ -257,7 +257,7 @@ Run the same gates used by CI:
 make verify
 ```
 
-Verified on 2026-08-22: 227 backend tests passing; backend lint, dashboard lint, TypeScript checks, and the optimized Next.js production build complete successfully.
+Verified on 2026-08-22: 233 backend tests passing; backend lint, SQLite initialization, API health smoke, dashboard lint, TypeScript checks, and the optimized Next.js production build complete successfully.
 
 Phase 6 focused tests:
 
