@@ -110,6 +110,31 @@ def test_external_instruction_cannot_authorize_secret_read() -> None:
     assert result.hard_block is True
 
 
+def test_system_file_access_is_hard_blocked_even_when_tool_is_allowed() -> None:
+    result = BaselineSecurityAdapter().evaluate(
+        request("read_file"),
+        contract(allowed_tools=["read_file"]),
+        context(),
+        resource_class=ResourceClass.SYSTEM_FILE,
+        destination=None,
+    )
+    assert result.decision is DecisionType.BLOCK
+    assert result.hard_block is True
+    assert result.matched_rules == ["SYSTEM_FILE_ACCESS_BLOCKED"]
+
+
+def test_write_outside_workspace_requires_approval() -> None:
+    result = BaselineSecurityAdapter().evaluate(
+        request("write_file"),
+        contract(allowed_tools=["write_file"]),
+        context(),
+        resource_class=ResourceClass.USER_DOCUMENT,
+        destination=None,
+    )
+    assert result.decision is DecisionType.REQUIRE_APPROVAL
+    assert result.matched_rules == ["WRITE_OUTSIDE_APPROVED_WORKSPACE"]
+
+
 def test_critical_data_to_unknown_destination_is_hard_blocked() -> None:
     result = BaselineSecurityAdapter().evaluate(
         request("http_request", data_refs=["data-secret"]),
