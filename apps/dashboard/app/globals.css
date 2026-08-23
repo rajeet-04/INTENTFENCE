@@ -377,6 +377,128 @@ button {
   font-weight: 650;
 }
 
+.judge-prompts a {
+  color: var(--accent);
+  font-size: 0.7rem;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.attack-lab-shell {
+  min-height: 100vh;
+  padding: 32px 20px 64px;
+  background:
+    radial-gradient(circle at 50% -15%, rgba(180, 35, 24, 0.16), transparent 34%),
+    #0d1117;
+  color: #f7f9fc;
+}
+
+.attack-lab-header,
+.attack-lab-card {
+  width: min(820px, 100%);
+  margin-inline: auto;
+}
+
+.attack-lab-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 56px;
+}
+
+.attack-lab-header a {
+  color: #fff;
+  font-weight: 850;
+  text-decoration: none;
+}
+
+.attack-lab-header span {
+  padding: 6px 10px;
+  border: 1px solid rgba(90, 240, 174, 0.35);
+  border-radius: 999px;
+  background: rgba(22, 121, 75, 0.18);
+  color: #5af0ae;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.attack-lab-card {
+  padding: clamp(24px, 5vw, 52px);
+  border: 1px solid #303846;
+  border-radius: 22px;
+  background: #151b23;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+}
+
+.attack-lab-kicker {
+  color: #ff746b;
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.attack-lab-card h1 {
+  margin: 10px 0 14px;
+  font-size: clamp(2rem, 6vw, 4rem);
+  letter-spacing: -0.055em;
+  line-height: 0.98;
+}
+
+.attack-lab-card > p {
+  color: #aeb8c5;
+  line-height: 1.65;
+}
+
+.attack-payload {
+  margin-top: 34px;
+  padding: 24px;
+  border: 1px solid rgba(255, 91, 79, 0.55);
+  border-left: 5px solid #ff5b4f;
+  border-radius: 14px;
+  background: rgba(180, 35, 24, 0.11);
+}
+
+.attack-payload > span,
+.attack-payload small {
+  color: #ff8d85;
+  font: 750 0.68rem ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-transform: uppercase;
+}
+
+.attack-payload h2 {
+  margin: 10px 0;
+}
+
+.attack-payload p {
+  line-height: 1.65;
+}
+
+.attack-payload code {
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.attack-lab-safety {
+  margin-top: 24px;
+  padding: 18px 20px;
+  border: 1px solid rgba(90, 240, 174, 0.25);
+  border-radius: 12px;
+  background: rgba(22, 121, 75, 0.1);
+}
+
+.attack-lab-safety strong {
+  color: #5af0ae;
+}
+
+.attack-lab-safety p {
+  margin: 7px 0 0;
+  color: #aeb8c5;
+  line-height: 1.55;
+}
+
 .conversation-panel {
   display: flex;
   min-height: 0;
