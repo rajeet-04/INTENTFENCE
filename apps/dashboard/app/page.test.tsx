@@ -10,7 +10,7 @@ test("renders the Agent and Evidence product shell with source-backed evidence",
   expect(markup).toContain("Evidence");
   expect(markup).toContain("Ask IntentFence");
   expect(markup).toContain("Web research");
-  expect(markup).toContain("Run attack simulation");
-  expect(markup).toContain("Without IntentFence");
-  expect(markup).toContain("With IntentFence");
+  expect(markup).toContain("Loading security evidence");
+  expect(markup).not.toContain("See the policy boundary in action");
+  expect(markup).not.toContain("Without IntentFence");
 });

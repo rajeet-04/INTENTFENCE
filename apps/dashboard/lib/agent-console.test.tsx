@@ -255,12 +255,13 @@ test("explicit revision disables web and the controlled browse probe is visibly 
   });
 });
 
-test("Evidence navigation keeps the attack simulation and measured KPI console mounted", async () => {
+test("Evidence navigation shows only the current evidence console", async () => {
   render(<ProductShell />);
   fireEvent.click(screen.getByRole("button", { name: "Evidence" }));
 
-  expect(screen.getByText("Run attack simulation")).toBeTruthy();
   expect(screen.getByText("Measured security performance")).toBeTruthy();
+  expect(screen.queryByText("See the policy boundary in action.")).toBeNull();
+  expect(screen.queryByText("Without IntentFence")).toBeNull();
   await screen.findByText("offline");
   await screen.findByText("Unable to load authoritative gateway evidence");
 });

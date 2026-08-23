@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 
-import { DemoComparison } from "@/components/DemoComparison";
 import { AgentConsole } from "@/components/agent/AgentConsole";
 import { SecurityConsole } from "@/components/security-console/SecurityConsole";
 
@@ -38,9 +37,6 @@ export function ProductShell() {
           <p>Authoritative release evidence</p>
           <h1>Measured security performance</h1>
           <span>Controlled attack · receipts · benchmark provenance</span>
-        </section>
-        <section className="judge-stage evidence-demo" aria-label="IntentFence judge demonstration">
-          <DemoComparison />
         </section>
         <SecurityConsole />
       </div>
