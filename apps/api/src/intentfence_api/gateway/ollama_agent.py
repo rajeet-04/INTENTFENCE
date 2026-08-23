@@ -1,3 +1,5 @@
+import json
+from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -55,6 +57,26 @@ class OllamaAgentClient:
         )
         response.raise_for_status()
         return response.json()
+
+    def iter_chat(self, messages: list[dict], tools: list[dict]) -> Iterator[dict]:
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "tools": tools,
+            "stream": True,
+            "options": {"num_ctx": self.context_length},
+        }
+        with self._client.stream(
+            "POST", f"{self.base_url}/api/chat", json=payload
+        ) as response:
+            response.raise_for_status()
+            for line in response.iter_lines():
+                if not line.strip():
+                    continue
+                value = json.loads(line)
+                if not isinstance(value, dict):
+                    raise RuntimeError("Ollama stream chunk must be an object")
+                yield value
 
     def close(self) -> None:
         self._client.close()
