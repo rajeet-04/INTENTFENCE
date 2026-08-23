@@ -19,6 +19,12 @@ class Settings(BaseSettings):
     semantic_ollama_base_url: str = "http://localhost:11434"
     semantic_ollama_model: str = "qwen2.5:7b"
     semantic_timeout_seconds: float = Field(default=5.0, gt=0.0, le=60.0)
+    agent_ollama_base_url: str = "http://127.0.0.1:11434"
+    agent_ollama_model: str = "qwen3:14b"
+    agent_ollama_context_length: int = Field(default=32768, ge=4096, le=262144)
+    live_web_enabled: bool = False
+    ollama_api_key: str | None = None
+    ollama_web_base_url: str = "https://ollama.com"
 
     @property
     def cors_origin_list(self) -> list[str]:

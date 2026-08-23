@@ -1,0 +1,1 @@
+Docs-only baseline complete; production implementation starts after PR CI.

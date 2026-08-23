@@ -6,7 +6,9 @@ from intentfence_classification import (
     classify_destination,
     classify_resource,
     extract_destination_argument,
+    extract_destination_candidates,
     extract_resource_argument,
+    normalize_destination,
 )
 from intentfence_contracts import (
     DataLabel,
@@ -63,6 +65,9 @@ class EvaluationContext:
     resource_class: ResourceClass | None
     destination: str | None
     destination_class: DestinationClass
+    destination_candidates: tuple[str, ...]
+    destination_hosts: tuple[str, ...]
+    destination_ambiguous: bool
     argument_text: str
 
     @classmethod
@@ -75,6 +80,14 @@ class EvaluationContext:
         arguments = policy_input.request.arguments
         resource_ref = extract_resource_argument(arguments)
         destination = extract_destination_argument(arguments)
+        destination_candidates = extract_destination_candidates(arguments)
+        destination_hosts = tuple(
+            dict.fromkeys(
+                host
+                for candidate in destination_candidates
+                if (host := normalize_destination(candidate))
+            )
+        )
         return cls(
             input=policy_input,
             config=active_config,
@@ -94,5 +107,8 @@ class EvaluationContext:
                 if destination
                 else DestinationClass.UNKNOWN_EXTERNAL
             ),
+            destination_candidates=destination_candidates,
+            destination_hosts=destination_hosts,
+            destination_ambiguous=len(destination_hosts) > 1,
             argument_text=json.dumps(arguments, sort_keys=True, default=str),
         )

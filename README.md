@@ -167,6 +167,33 @@ provider = OllamaProvider(
 
 Tests use `httpx.MockTransport`; they never contact a live model server. A cloud provider is also optional. `HybridSemanticJudge` accepts an injected cloud judge and escalates only when local confidence is below the configured threshold.
 
+### Phase 9 local agent and live-web smoke (M4, 24 GB)
+
+The Phase 9 judge path uses local `qwen3:14b` inference through Ollama with a 32K context window. Ollama Web Search and Web Fetch are separate hosted retrieval APIs, so that part requires internet access and a local API key. The key is read only from the environment and must never be committed.
+
+Install Ollama for macOS, start it, and download the approved model:
+
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+ollama serve
+ollama pull qwen3:14b
+# Optional fallback if judge latency is too high:
+ollama pull qwen3:8b
+```
+
+On this machine the CLI is also available at `$HOME/.local/bin/ollama`. In a new terminal, configure and run the complete live gate from the repository root:
+
+```bash
+export INTENTFENCE_AGENT_OLLAMA_BASE_URL=http://127.0.0.1:11434
+export INTENTFENCE_AGENT_OLLAMA_MODEL=qwen3:14b
+export INTENTFENCE_AGENT_OLLAMA_CONTEXT_LENGTH=32768
+export INTENTFENCE_LIVE_WEB_ENABLED=true
+export INTENTFENCE_OLLAMA_API_KEY='<set locally; never commit>'
+make phase9-mac-smoke
+```
+
+The smoke verifies the local model and tool calling, performs real hosted search/fetch, runs benign and controlled poisoned workflows through the authoritative gateway, proves disabled-versus-enabled sandbox effects, and reruns the Phase 8 benchmark. Its output contains only status/count/decision metadata.
+
 ## Versioned Intent Contracts
 
 `IntentContractDraft` accepts only user-authorized contract fields. Unknown fields, including external-content instructions, are rejected. Compiling a draft produces contract version 1. Revising a contract:
@@ -299,7 +326,7 @@ cd apps/dashboard
 "$HOME/.bun/bin/bun" run dev
 ```
 
-By default the dashboard probes `http://localhost:8000/health`. Override it with `NEXT_PUBLIC_API_BASE_URL` when needed. Ollama and all cloud providers are optional; the automated tests do not make external model calls.
+By default the dashboard probes `http://localhost:8000/health`. Override it with `NEXT_PUBLIC_API_BASE_URL` when needed. Ollama and all cloud providers are optional for the normal MVP and automated tests; only `make phase9-mac-smoke` makes live model and hosted web calls.
 
 ## Verification
 

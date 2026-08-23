@@ -1,8 +1,13 @@
-from urllib.parse import urlparse
+import unicodedata
+from urllib.parse import unquote, urlparse
 
 from intentfence_contracts import ResourceClass
 
 from .config import ClassifierConfig
+
+_ZERO_WIDTH_TRANSLATION = {
+    ord(char): None for char in ("\u200b", "\u200c", "\u200d", "\u2060", "\ufeff")
+}
 
 _CREDENTIAL_EXTENSIONS = (
     ".pem",
@@ -82,7 +87,23 @@ _DOCUMENT_EXTENSIONS = (
 
 
 def normalize_path(value: str) -> str:
-    return value.strip().replace("\\", "/").lower()
+    decoded = unquote(value.strip().replace("\\", "/"))
+    folded = unicodedata.normalize("NFKC", decoded).translate(_ZERO_WIDTH_TRANSLATION).lower()
+    absolute = folded.startswith("/")
+    segments = [segment for segment in folded.split("/") if segment not in {"", "."}]
+    collapsed: list[str] = []
+    for segment in segments:
+        if segment == "..":
+            if collapsed and collapsed[-1] != "..":
+                collapsed.pop()
+            elif not absolute:
+                collapsed.append(segment)
+            continue
+        collapsed.append(segment)
+    resolved = "/".join(collapsed)
+    if absolute:
+        return "/" + resolved
+    return resolved or "."
 
 
 def _is_url(value: str) -> bool:
@@ -105,10 +126,11 @@ def _is_system_path(lowered: str) -> bool:
 
 
 def is_path_under_root(path: str, root: str) -> bool:
+    normalized_path = normalize_path(path)
     normalized_root = normalize_path(root).rstrip("/")
     if not normalized_root:
         return False
-    return path == normalized_root or path.startswith(normalized_root + "/")
+    return normalized_path == normalized_root or normalized_path.startswith(normalized_root + "/")
 
 
 def _in_workspace(path: str, config: ClassifierConfig) -> bool:
