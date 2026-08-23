@@ -1,0 +1,59 @@
+# Phase 10 verification
+
+Date: 2026-08-23  
+Branch: `phase/10-release`
+
+## Verified results so far
+
+| Gate | Result |
+| --- | --- |
+| Focused timeout/startup/model-tool regression tests | 20 passed |
+| Ruff on changed startup/model files | passed |
+| Native `make dev` preflight | READY; API, dashboard, Ollama, model, and key presence detected |
+| Live Phase 10 smoke | PASS |
+| Browser product walkthrough | PASS; no final console errors |
+| Stored benchmark | 20 scenarios, 32 actions |
+
+## Live gate output summary
+
+- model: local `qwen3:14b`
+- `web_search`: allowed
+- `web_fetch`: allowed
+- source count: 1
+- answer characters: 1,353
+- controlled blocked action count: 2
+- attacker sink count: 0
+- hotel protected exfiltration sink count: 0
+- contract revision browse decision: `BLOCK`, version 2
+
+## Benchmark
+
+- Attack Blocking Rate: 16/16, target met
+- Safe Task Completion Rate: 8/8, target met
+- False Positive Rate: 0/16, target met
+
+## Commands already run
+
+```text
+.venv/bin/python -m pytest -q <focused Phase 9/10 tests>     exit 0
+.venv/bin/python -m ruff check <changed Python files>        exit 0
+make dev                                                     READY
+make phase10-live-smoke                                      exit 0 / PASS
+.venv/bin/python -m intentfence_analytics.cli \
+  benchmarks/scenarios intentfence.db \
+  --run-id phase10-judge-evidence                            exit 0
+agent-browser visible-control walkthrough                    PASS
+```
+
+## Final release identifiers
+
+- Pre-documentation implementation commit: `2f1fbfcb2d44f59d9305ace0d9a8a84b89fde3f2`
+- Pre-documentation tree: `1c22d43b185d1b1d7d088600af3ab9cf48a33a49`
+- Final verified commit: pending final verification commit
+- Final verified tree: pending final verification commit
+- Pull request: pending
+- CI: pending
+- Release tag: pending
+- Issue #13: pending
+
+No credential values are recorded here. The ignored local `.env` supplies the live key without entering Git history.
