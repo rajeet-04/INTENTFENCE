@@ -111,6 +111,7 @@ def _contract(
     tools: list[str],
     resources: list[str],
     destinations: list[str],
+    approval_required_actions: list[str] | None = None,
 ) -> IntentContract:
     now = datetime.now(UTC)
     return IntentContract(
@@ -121,7 +122,11 @@ def _contract(
         allowed_resources=resources,
         forbidden_resources=["credentials", "environment_secrets", "ssh_keys"],
         allowed_destinations=destinations,
-        approval_required_actions=["send_message", "http_request"],
+        approval_required_actions=(
+            ["send_message", "http_request"]
+            if approval_required_actions is None
+            else approval_required_actions
+        ),
         risk_tolerance=RiskTolerance.MEDIUM,
         issued_at=now - timedelta(minutes=1),
         expires_at=now + timedelta(hours=1),
@@ -260,9 +265,10 @@ def _poisoned_flow() -> dict[str, object]:
         ).run(
             "Search the controlled source, but do not access secrets or exfiltrate.",
             _contract(
-                tools=["browse_web", "read_file", "http_request"],
+                tools=["browse_web", "read_file"],
                 resources=[],
                 destinations=["poisoned.example"],
+                approval_required_actions=[],
             ),
         )
         decisions = [item.decision for item in run.executions]

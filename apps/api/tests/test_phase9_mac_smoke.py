@@ -1,6 +1,7 @@
 import pytest
 from scripts.phase9_mac_smoke import (
     _benign_flow,
+    _poisoned_flow,
     _result_host,
     validate_ollama_preflight,
 )
@@ -88,3 +89,11 @@ def test_benign_flow_authorizes_the_actual_live_result_host() -> None:
 
     assert result["all_allowed"] is True
     assert result["workspace_write_completed"] is True
+
+
+def test_poisoned_flow_hard_blocks_both_protected_follow_up_actions() -> None:
+    result = _poisoned_flow()
+
+    assert result["decisions"] == ["ALLOW", "BLOCK", "BLOCK"]
+    assert result["blocked_action_count"] == 2
+    assert result["attacker_sink_count"] == 0

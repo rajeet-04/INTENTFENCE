@@ -25,6 +25,8 @@ Candidate date: 2026-08-23
 - Dashboard: `13 passed`; lint/typecheck/build PASS.
 - Phase 8 regression: ABR `16/16` (100%), STCR `8/8` (100%), FPR `0/16` (0%).
 
-## Remaining acceptance
+## Live-Mac acceptance
 
-Run `make phase9-mac-smoke` after `qwen3:14b` is installed and `INTENTFENCE_OLLAMA_API_KEY` is set locally. Do not mark HARD PASS until that command prints `"status": "PASS"` and the final PR/merge-tree gates succeed.
+`make phase9-mac-smoke` printed `"status": "PASS"` on the M4 host with local `qwen3:14b` and ephemeral Ollama hosted-web credentials. The poisoned flow produced `ALLOW, BLOCK, BLOCK` with attacker sink count 0, and the disabled/enabled comparison produced sink counts 1/0 while preserving the legitimate write.
+
+Final PR CI/review and exact merge-tree proof remain required before declaring the overall Phase 9 HARD PASS.

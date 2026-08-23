@@ -12,4 +12,4 @@ Implemented checkpoints:
 6. Golden disabled/enabled demo now performs real controlled sandbox effects.
 7. M4 smoke command, preflight tests, native Ollama setup, and CI security smoke added.
 
-Current gate: deterministic candidate is green. The `qwen3:14b` model download and secret-safe local Web API key setup precede live-Mac acceptance. No HARD PASS or merge claim is made before the live command prints `"status": "PASS"`.
+Current gate: deterministic candidate is green and the secret-safe M4 live command printed `"status": "PASS"`. Final PR CI/review and exact merge-tree proof remain. No overall HARD PASS or merge claim is made before those gates complete.
