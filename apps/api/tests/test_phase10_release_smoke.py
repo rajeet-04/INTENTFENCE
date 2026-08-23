@@ -10,6 +10,7 @@ from scripts.phase10_dev import (
 )
 from scripts.phase10_release_smoke import (
     build_preflight_summary,
+    run_deterministic_cloud_fallback_smoke,
     run_deterministic_release_smoke,
     validate_live_flow,
 )
@@ -24,6 +25,7 @@ def test_preflight_reports_capabilities_without_secret_values() -> None:
         ollama_available=False,
         model_available=False,
         api_available=True,
+        cloud_fallback_enabled=True,
         web_api_key=sentinel,
     )
     serialized = json.dumps(summary, sort_keys=True)
@@ -35,6 +37,7 @@ def test_preflight_reports_capabilities_without_secret_values() -> None:
         "ollama_available": False,
         "model_available": False,
         "api_available": True,
+        "cloud_configured": True,
         "web_api_key_configured": True,
     }
     assert sentinel not in serialized
@@ -48,6 +51,7 @@ def test_live_preflight_requires_web_key_but_deterministic_mode_does_not() -> No
         ollama_available=False,
         model_available=False,
         api_available=False,
+        cloud_fallback_enabled=True,
         web_api_key=None,
     )
     assert deterministic["web_api_key_configured"] is False
@@ -60,6 +64,7 @@ def test_live_preflight_requires_web_key_but_deterministic_mode_does_not() -> No
             ollama_available=True,
             model_available=True,
             api_available=True,
+            cloud_fallback_enabled=True,
             web_api_key=None,
         )
 
@@ -80,6 +85,22 @@ def test_deterministic_release_smoke_exercises_agent_security_and_benchmark() ->
     }
 
 
+def test_deterministic_cloud_fallback_preserves_completed_tool_execution() -> None:
+    result = run_deterministic_cloud_fallback_smoke()
+
+    assert result == {
+        "status": "PASS",
+        "local_attempted": True,
+        "cloud_used": True,
+        "route_reason": "fallback",
+        "assistant_reset": True,
+        "source_count": 1,
+        "tool_decision_count": 1,
+        "tool_execution_count": 1,
+        "answer_chars": len("Complete cloud answer with the protected source."),
+    }
+
+
 def test_dev_preflight_and_commands_are_secret_free_and_shell_independent() -> None:
     sentinel = "SENTINEL_DEV_KEY_NEVER_PRINT"
     preflight = build_dev_preflight(
@@ -88,6 +109,7 @@ def test_dev_preflight_and_commands_are_secret_free_and_shell_independent() -> N
         api_import_available=True,
         ollama_available=True,
         model_available=True,
+        cloud_fallback_enabled=True,
         web_api_key=sentinel,
     )
     commands = development_commands(
@@ -99,6 +121,7 @@ def test_dev_preflight_and_commands_are_secret_free_and_shell_independent() -> N
 
     assert sentinel not in json.dumps(preflight)
     assert preflight["web_api_key_configured"] is True
+    assert preflight["cloud_configured"] is True
     assert commands == {
         "api": [
             "/workspace/.venv/bin/python",
@@ -134,6 +157,9 @@ def test_dev_reuse_requires_phase10_specific_api_and_dashboard_markers() -> None
         "model": "qwen3:14b",
         "ollama_available": True,
         "model_available": True,
+        "cloud_model": "gpt-oss:120b-cloud",
+        "cloud_configured": True,
+        "default_reasoning_mode": "auto",
         "web_configured": True,
     }
 

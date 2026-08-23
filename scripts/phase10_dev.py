@@ -26,6 +26,7 @@ def build_dev_preflight(
     api_import_available: bool,
     ollama_available: bool,
     model_available: bool,
+    cloud_fallback_enabled: bool,
     web_api_key: str | None,
 ) -> dict[str, bool]:
     return {
@@ -34,6 +35,9 @@ def build_dev_preflight(
         "api_import_available": api_import_available,
         "ollama_available": ollama_available,
         "model_available": model_available,
+        "cloud_configured": bool(
+            cloud_fallback_enabled and web_api_key and web_api_key.strip()
+        ),
         "web_api_key_configured": bool(web_api_key and web_api_key.strip()),
     }
 
@@ -117,6 +121,9 @@ def _api_payloads_match_phase10(health: object, readiness: object) -> bool:
         "model",
         "ollama_available",
         "model_available",
+        "cloud_model",
+        "cloud_configured",
+        "default_reasoning_mode",
         "web_configured",
     }.issubset(readiness)
 
@@ -167,6 +174,7 @@ def main() -> int:
         api_import_available=importlib.util.find_spec("intentfence_api.app") is not None,
         ollama_available=ollama_available,
         model_available=model_available,
+        cloud_fallback_enabled=settings.agent_cloud_fallback_enabled,
         web_api_key=settings.ollama_api_key,
     )
     print(json.dumps({"phase10_preflight": preflight}, sort_keys=True), flush=True)
@@ -219,8 +227,11 @@ def main() -> int:
                 {
                     "status": (
                         "CONFIGURED"
-                        if preflight["ollama_available"]
-                        and preflight["model_available"]
+                        if (
+                            preflight["ollama_available"]
+                            and preflight["model_available"]
+                            or preflight["cloud_configured"]
+                        )
                         and preflight["web_api_key_configured"]
                         else "DEGRADED"
                     ),

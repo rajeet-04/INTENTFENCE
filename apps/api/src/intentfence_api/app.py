@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from intentfence_contracts import Decision
 
+from .agent.model_router import OllamaModelRouter
 from .agent.models import AgentChatRequest, ErrorEvent
 from .agent.orchestrator import AgentError, Phase10ChatOrchestrator
 from .agent.readiness import AgentReadiness, probe_agent_readiness
@@ -36,11 +37,28 @@ gateway = IntentFenceGateway(
 )
 tool_runtime = SandboxProtectedToolRuntime()
 agent_session_store = AgentSessionStore()
-agent_client = OllamaAgentClient(
+local_agent_client = OllamaAgentClient(
     base_url=settings.agent_ollama_base_url,
     model=settings.agent_ollama_model,
     context_length=settings.agent_ollama_context_length,
     timeout_seconds=settings.agent_ollama_timeout_seconds,
+)
+cloud_agent_client = (
+    OllamaAgentClient(
+        base_url=settings.agent_cloud_base_url,
+        model=settings.agent_cloud_model,
+        context_length=settings.agent_ollama_context_length,
+        timeout_seconds=settings.agent_ollama_timeout_seconds,
+        api_key=settings.ollama_api_key,
+    )
+    if settings.agent_cloud_fallback_enabled
+    and settings.ollama_api_key
+    and settings.ollama_api_key.strip()
+    else None
+)
+agent_model_router = OllamaModelRouter(
+    local_client=local_agent_client,
+    cloud_client=cloud_agent_client,
 )
 agent_web_provider = OllamaWebProvider(
     api_key=settings.ollama_api_key if settings.live_web_enabled else None,
@@ -53,7 +71,7 @@ agent_tool_executor = OllamaToolExecutor(
     gateway=agent_gateway,
 )
 chat_orchestrator = Phase10ChatOrchestrator(
-    client=agent_client,
+    client=agent_model_router,
     executor=agent_tool_executor,
     session_store=agent_session_store,
 )
@@ -88,8 +106,11 @@ def agent_readiness() -> AgentReadiness:
     return probe_agent_readiness(
         base_url=settings.agent_ollama_base_url,
         model=settings.agent_ollama_model,
+        cloud_model=settings.agent_cloud_model,
         live_web_enabled=settings.live_web_enabled,
         web_api_key=settings.ollama_api_key,
+        cloud_fallback_enabled=settings.agent_cloud_fallback_enabled,
+        cloud_api_key=settings.ollama_api_key,
     )
 
 

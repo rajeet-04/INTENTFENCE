@@ -2,7 +2,7 @@ UV ?= uv
 PYTHON ?= .venv/bin/python
 BUN ?= bun
 
-.PHONY: setup setup-backend test-backend test-benchmark lint-backend format-backend setup-frontend test-frontend dev dev-api dev-dashboard phase9-mac-smoke phase10-smoke phase10-live-smoke verify
+.PHONY: setup setup-backend test-backend test-benchmark lint-backend format-backend setup-frontend test-frontend dev dev-api dev-dashboard phase9-mac-smoke phase10-smoke phase10-live-smoke phase10-cloud-fallback-smoke verify
 
 setup: setup-backend setup-frontend
 
@@ -48,5 +48,8 @@ phase10-smoke:
 
 phase10-live-smoke:
 	$(PYTHON) scripts/phase10_release_smoke.py --live
+
+phase10-cloud-fallback-smoke:
+	$(PYTHON) scripts/phase10_release_smoke.py --cloud-fallback
 
 verify: lint-backend test-backend test-frontend

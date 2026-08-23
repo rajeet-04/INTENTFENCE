@@ -3,6 +3,7 @@ import json
 from fastapi.testclient import TestClient
 
 import intentfence_api.app as app_module
+from intentfence_api.agent.model_router import OllamaModelRouter
 from intentfence_api.agent.models import AssistantDoneEvent, SessionEvent
 from intentfence_api.agent.orchestrator import AgentError
 from intentfence_api.agent.sessions import AgentSessionStore
@@ -50,6 +51,10 @@ def event_data(response_text: str, event_name: str) -> dict:
         data_line = next(line for line in lines if line.startswith("data: "))
         return json.loads(data_line.removeprefix("data: "))
     raise AssertionError(f"missing SSE event {event_name}")
+
+
+def test_production_agent_uses_local_cloud_model_router() -> None:
+    assert isinstance(app_module.chat_orchestrator.client, OllamaModelRouter)
 
 
 def test_agent_chat_endpoint_streams_ordered_typed_sse(monkeypatch) -> None:

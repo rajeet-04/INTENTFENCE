@@ -15,13 +15,14 @@ from typing import Any
 
 import httpx
 from intentfence_analytics.cli import run_stored_benchmark
+from intentfence_api.agent.model_router import OllamaModelRouter
 from intentfence_api.agent.models import AgentChatRequest, AgentEventType
 from intentfence_api.agent.orchestrator import Phase10ChatOrchestrator
 from intentfence_api.agent.sessions import AgentSessionStore
 from intentfence_api.agent.tool_executor import OllamaToolExecutor
 from intentfence_api.config import Settings
 from intentfence_api.gateway.demo import run_hotel_attack_demo
-from intentfence_api.gateway.ollama_agent import OllamaAgentClient
+from intentfence_api.gateway.ollama_agent import OllamaAgentClient, OllamaStreamError
 from intentfence_api.gateway.ollama_web import OllamaWebProvider
 from intentfence_api.gateway.runtime import SandboxProtectedToolRuntime
 from intentfence_api.gateway.sandbox import SandboxEnvironment
@@ -36,6 +37,7 @@ def build_preflight_summary(
     ollama_available: bool,
     model_available: bool,
     api_available: bool,
+    cloud_fallback_enabled: bool,
     web_api_key: str | None,
 ) -> dict[str, object]:
     key_configured = bool(web_api_key and web_api_key.strip())
@@ -46,6 +48,7 @@ def build_preflight_summary(
         "ollama_available": ollama_available,
         "model_available": model_available,
         "api_available": api_available,
+        "cloud_configured": bool(cloud_fallback_enabled and key_configured),
         "web_api_key_configured": key_configured,
     }
     if live:
@@ -79,8 +82,12 @@ class _ScriptedStreamingClient:
 
 
 class _ControlledWebProvider:
+    def __init__(self) -> None:
+        self.search_calls = 0
+
     def search(self, query: str, *, max_results: int = 5) -> dict[str, object]:
         del query, max_results
+        self.search_calls += 1
         return {
             "results": [
                 {
@@ -234,6 +241,83 @@ def run_deterministic_release_smoke() -> dict[str, object]:
     }
 
 
+def run_deterministic_cloud_fallback_smoke() -> dict[str, object]:
+    class LocalThenInterrupted:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def iter_chat(self, messages: list[dict], tools: list[dict]):
+            del messages, tools
+            self.calls += 1
+            if self.calls == 1:
+                yield from _tool_turn("web_search", {"query": "protected source"})
+                return
+            yield from _answer_turn("Discard this partial local answer.")
+            raise OllamaStreamError("controlled local interruption")
+
+    local = LocalThenInterrupted()
+    cloud = _ScriptedStreamingClient(
+        [_answer_turn("Complete cloud answer with the protected source.")]
+    )
+    web = _ControlledWebProvider()
+    store = AgentSessionStore()
+    runtime = SandboxProtectedToolRuntime()
+    orchestrator = Phase10ChatOrchestrator(
+        client=OllamaModelRouter(local_client=local, cloud_client=cloud),
+        executor=OllamaToolExecutor(runtime=runtime, web_provider=web),
+        session_store=store,
+    )
+    request = AgentChatRequest(
+        message="Research one protected source and summarize it.",
+        objective="Research public agent security sources",
+        web_research_enabled=True,
+    )
+    session = store.resolve(
+        session_id=None,
+        objective=request.objective,
+        web_research_enabled=True,
+        revise_intent=False,
+    )
+    try:
+        events = list(orchestrator.stream(request=request, session=session))
+    finally:
+        runtime.close()
+
+    reset_index = next(
+        index
+        for index, event in enumerate(events)
+        if event.event == AgentEventType.ASSISTANT_RESET
+    )
+    answer_chars = sum(
+        len(event.delta)
+        for event in events[reset_index + 1 :]
+        if event.event == AgentEventType.ASSISTANT_DELTA
+    )
+    cloud_status = next(
+        event
+        for event in events
+        if event.event == AgentEventType.MODEL_STATUS
+        and event.provider == "cloud"
+    )
+    decisions = [
+        event for event in events if event.event == AgentEventType.TOOL_DECISION
+    ]
+    sources = [event for event in events if event.event == AgentEventType.SOURCE]
+    if len(decisions) != 1 or web.search_calls != 1 or answer_chars < 1:
+        raise RuntimeError("deterministic cloud fallback replayed or lost protected work")
+    return {
+        "status": "PASS",
+        "local_attempted": local.calls > 0,
+        "cloud_used": True,
+        "route_reason": cloud_status.route_reason,
+        "assistant_reset": True,
+        "source_count": len(sources),
+        "tool_decision_count": len(decisions),
+        "tool_execution_count": web.search_calls,
+        "answer_chars": answer_chars,
+    }
+
+
 def _installed_model(tags_payload: object, model: str) -> bool:
     if not isinstance(tags_payload, dict) or not isinstance(tags_payload.get("models"), list):
         return False
@@ -291,6 +375,7 @@ def run_live_release_smoke(settings: Settings) -> dict[str, object]:
         ollama_available=ollama_available,
         model_available=model_available,
         api_available=_api_contract_available(),
+        cloud_fallback_enabled=settings.agent_cloud_fallback_enabled,
         web_api_key=settings.ollama_api_key,
     )
     if not settings.live_web_enabled:
@@ -392,11 +477,70 @@ def run_live_release_smoke(settings: Settings) -> dict[str, object]:
     }
 
 
+def run_live_cloud_fallback_smoke(settings: Settings) -> dict[str, object]:
+    if not settings.agent_cloud_fallback_enabled or not (
+        settings.ollama_api_key and settings.ollama_api_key.strip()
+    ):
+        raise RuntimeError("cloud fallback smoke requires Ollama Cloud configuration")
+    local = OllamaAgentClient(
+        base_url="http://127.0.0.1:1",
+        model=settings.agent_ollama_model,
+        context_length=settings.agent_ollama_context_length,
+        timeout_seconds=1.0,
+    )
+    cloud = OllamaAgentClient(
+        base_url=settings.agent_cloud_base_url,
+        model=settings.agent_cloud_model,
+        context_length=settings.agent_ollama_context_length,
+        timeout_seconds=settings.agent_ollama_timeout_seconds,
+        api_key=settings.ollama_api_key,
+    )
+    try:
+        chunks = list(
+            OllamaModelRouter(local_client=local, cloud_client=cloud).iter_chat(
+                [{"role": "user", "content": "Reply with one short sentence."}],
+                [],
+                reasoning_mode="auto",
+            )
+        )
+    finally:
+        local.close()
+        cloud.close()
+    routes = [
+        item
+        for item in chunks
+        if item.get("_intentfence_control") == "route_start"
+    ]
+    answer_chars = sum(
+        len(message["content"])
+        for item in chunks
+        if isinstance((message := item.get("message")), dict)
+        and isinstance(message.get("content"), str)
+    )
+    if [(item["provider"], item["route_reason"]) for item in routes] != [
+        ("local", "primary"),
+        ("cloud", "fallback"),
+    ] or answer_chars < 1:
+        raise RuntimeError("live cloud fallback did not produce a complete routed answer")
+    return {
+        "status": "PASS",
+        "local_attempted": True,
+        "cloud_used": True,
+        "route_reason": "fallback",
+        "answer_chars": answer_chars,
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--live", action="store_true")
+    parser.add_argument("--cloud-fallback", action="store_true")
     args = parser.parse_args()
-    if args.live:
+    if args.live and args.cloud_fallback:
+        parser.error("choose only one live smoke mode")
+    if args.cloud_fallback:
+        result = run_live_cloud_fallback_smoke(Settings())
+    elif args.live:
         result = run_live_release_smoke(Settings())
     else:
         result = run_deterministic_release_smoke()
@@ -409,6 +553,7 @@ def main() -> None:
             ollama_available=False,
             model_available=False,
             api_available=_api_contract_available(),
+            cloud_fallback_enabled=False,
             web_api_key=None,
         )
     print(json.dumps(result, indent=2, sort_keys=True))
