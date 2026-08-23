@@ -255,13 +255,85 @@ test("explicit revision disables web and the controlled browse probe is visibly 
   });
 });
 
-test("Evidence navigation shows only the current evidence console", async () => {
-  render(<ProductShell />);
+test("Evidence navigation starts empty instead of running a scripted demo", async () => {
+  const originalFetch = globalThis.fetch;
+  let fetchCalls = 0;
+  globalThis.fetch = ((input, init) => {
+    if (String(input).includes("/demo/hotel-attack")) fetchCalls += 1;
+    return originalFetch(input, init);
+  }) as typeof fetch;
+
+  try {
+    render(<ProductShell />);
+    fireEvent.click(screen.getByRole("button", { name: "Evidence" }));
+
+    expect(screen.getByText("Measured security performance")).toBeTruthy();
+    expect(screen.getByText("No agent evidence yet")).toBeTruthy();
+    expect(fetchCalls).toBe(0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("Evidence shows receipts and sources from the actual Agent session", async () => {
+  const stream: AgentStreamFunction = async (_request, handlers) => {
+    handlers.onEvent({ event: "session", sequence: 1, contract });
+    handlers.onEvent({
+      event: "model_status",
+      sequence: 2,
+      status: "searching",
+      provider: "cloud",
+      route_reason: "escalation",
+    });
+    handlers.onEvent({
+      event: "tool_proposed",
+      sequence: 3,
+      tool: "web_search",
+      argument_summary: { query_present: true },
+    });
+    handlers.onEvent({
+      event: "tool_decision",
+      sequence: 4,
+      tool: "web_search",
+      decision: "ALLOW",
+      executed: true,
+      reason: "Authorized live research.",
+      matched_rules: ["TOOL_ALLOWED"],
+      receipt_id: "receipt-live-session",
+      latency_ms: 7,
+    });
+    handlers.onEvent({
+      event: "source",
+      sequence: 5,
+      source: {
+        title: "Live source",
+        url: "https://example.com/live",
+        snippet: "Current source evidence",
+      },
+    });
+    handlers.onEvent({ event: "assistant_delta", sequence: 6, delta: "Live answer" });
+    handlers.onEvent({
+      event: "assistant_done",
+      sequence: 7,
+      source_count: 1,
+      tool_count: 1,
+      contract,
+    });
+  };
+
+  render(<ProductShell stream={stream} />);
+  fireEvent.change(screen.getByLabelText("Ask IntentFence"), {
+    target: { value: "Run a real query" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Send" }));
+  await screen.findByText("Live answer");
   fireEvent.click(screen.getByRole("button", { name: "Evidence" }));
 
-  expect(screen.getByText("Measured security performance")).toBeTruthy();
-  expect(screen.queryByText("See the policy boundary in action.")).toBeNull();
-  expect(screen.queryByText("Without IntentFence")).toBeNull();
-  await screen.findByText("offline");
-  await screen.findByText("Unable to load authoritative gateway evidence");
+  expect(screen.getByText("session-1")).toBeTruthy();
+  expect(screen.getAllByText("Research current information").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("receipt-live-session").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Authorized live research.").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("TOOL_ALLOWED").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Cloud · escalation").length).toBeGreaterThan(0);
+  expect(screen.getAllByRole("link", { name: /Live source/ }).length).toBeGreaterThan(0);
 });

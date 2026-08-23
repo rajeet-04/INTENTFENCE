@@ -1,6 +1,6 @@
 "use client";
 
-import { useReducer, useRef, useState } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 
 import {
   streamAgentChat,
@@ -11,6 +11,7 @@ import {
 import {
   agentReducer,
   initialAgentConversationState,
+  type AgentConversationState,
 } from "@/lib/agent-state";
 
 import { AgentHeader } from "./AgentHeader";
@@ -28,8 +29,10 @@ const DEFAULT_OBJECTIVE = "Research current information using protected public w
 
 export function AgentConsole({
   stream = streamAgentChat,
+  onStateChange,
 }: {
   stream?: AgentStreamFunction;
+  onStateChange?: (state: AgentConversationState) => void;
 }) {
   const [state, dispatch] = useReducer(agentReducer, initialAgentConversationState);
   const [objectiveDraft, setObjectiveDraft] = useState(DEFAULT_OBJECTIVE);
@@ -38,6 +41,10 @@ export function AgentConsole({
   const [revisionOpen, setRevisionOpen] = useState(false);
   const controllerRef = useRef<AbortController | null>(null);
   const idRef = useRef(0);
+
+  useEffect(() => {
+    onStateChange?.(state);
+  }, [onStateChange, state]);
 
   async function submit(content: string, reviseIntent = false, controlledProbe = false) {
     const trimmed = content.trim();
