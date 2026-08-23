@@ -2,7 +2,7 @@ UV ?= uv
 PYTHON ?= .venv/bin/python
 BUN ?= bun
 
-.PHONY: setup setup-backend test-backend test-benchmark lint-backend format-backend setup-frontend test-frontend dev-api dev-dashboard verify
+.PHONY: setup setup-backend test-backend test-benchmark lint-backend format-backend setup-frontend test-frontend dev-api dev-dashboard phase9-mac-smoke verify
 
 setup: setup-backend setup-frontend
 
@@ -36,5 +36,8 @@ dev-api:
 
 dev-dashboard:
 	cd apps/dashboard && $(BUN) run dev
+
+phase9-mac-smoke:
+	$(PYTHON) scripts/phase9_mac_smoke.py
 
 verify: lint-backend test-backend test-frontend
