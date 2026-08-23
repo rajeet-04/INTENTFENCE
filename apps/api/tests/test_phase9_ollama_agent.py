@@ -2,12 +2,14 @@ import json
 from datetime import UTC, datetime, timedelta
 
 import httpx
+import pytest
 from intentfence_contracts import DecisionType, IntentContract, RiskTolerance
 
 from intentfence_api.gateway.ollama_agent import (
     _OLLAMA_TOOL_DEFINITIONS,
     OllamaAgentClient,
     OllamaAgentRunner,
+    OllamaStreamError,
 )
 from intentfence_api.gateway.runtime import SandboxProtectedToolRuntime
 from intentfence_api.gateway.sandbox import SandboxEnvironment
@@ -132,6 +134,54 @@ def test_ollama_chat_client_posts_non_streaming_tool_request_with_context_length
         },
     }
     assert result["message"]["content"] == "done"
+
+
+def test_cloud_chat_sends_bearer_header_without_putting_key_in_payload() -> None:
+    captured: dict[str, object] = {}
+
+    def receive(request: httpx.Request) -> httpx.Response:
+        captured["authorization"] = request.headers.get("Authorization")
+        captured["body"] = request.content.decode()
+        return httpx.Response(
+            200,
+            request=request,
+            text=json.dumps(assistant_message("cloud answer")) + "\n",
+        )
+
+    client = OllamaAgentClient(
+        base_url="https://ollama.test",
+        model="gpt-oss:120b-cloud",
+        context_length=32768,
+        api_key="sentinel-cloud-key",
+        transport=httpx.MockTransport(receive),
+    )
+
+    chunks = list(client.iter_chat([{"role": "user", "content": "Answer"}], []))
+
+    assert chunks[-1]["done"] is True
+    assert captured["authorization"] == "Bearer sentinel-cloud-key"
+    assert "sentinel-cloud-key" not in str(captured["body"])
+
+
+def test_stream_ending_without_done_chunk_raises_typed_error() -> None:
+    client = OllamaAgentClient(
+        base_url="http://ollama.test",
+        model="qwen3:14b",
+        context_length=32768,
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(
+                200,
+                request=request,
+                text=json.dumps(
+                    {"message": {"role": "assistant", "content": "partial"}, "done": False}
+                )
+                + "\n",
+            )
+        ),
+    )
+
+    with pytest.raises(OllamaStreamError, match="before completion"):
+        list(client.iter_chat([], []))
 
 
 def test_web_tools_explain_required_arguments_to_the_local_model() -> None:

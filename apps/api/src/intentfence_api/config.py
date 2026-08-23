@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     agent_ollama_model: str = "qwen3:14b"
     agent_ollama_context_length: int = Field(default=32768, ge=4096, le=262144)
     agent_ollama_timeout_seconds: float = Field(default=300.0, gt=0.0, le=900.0)
+    agent_cloud_fallback_enabled: bool = True
+    agent_cloud_base_url: str = "https://ollama.com"
+    agent_cloud_model: str = "gpt-oss:120b-cloud"
     live_web_enabled: bool = False
     ollama_api_key: str | None = None
     ollama_web_base_url: str = "https://ollama.com"

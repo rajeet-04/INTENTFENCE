@@ -23,6 +23,10 @@ class OllamaWebProviderProtocol(Protocol):
     def fetch(self, url: str) -> dict[str, object]: ...
 
 
+class OllamaStreamError(RuntimeError):
+    """The Ollama response stream was malformed or ended before completion."""
+
+
 @dataclass(frozen=True)
 class OllamaAgentRunResult:
     final_message: str
@@ -38,17 +42,21 @@ class OllamaAgentClient:
         model: str,
         context_length: int,
         timeout_seconds: float = 300.0,
+        api_key: str | None = None,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.context_length = context_length
         self.timeout_seconds = timeout_seconds
+        key = api_key.strip() if api_key else ""
+        self._headers = {"Authorization": f"Bearer {key}"} if key else {}
         self._client = httpx.Client(transport=transport, timeout=timeout_seconds)
 
     def chat(self, messages: list[dict], tools: list[dict]) -> dict:
         response = self._client.post(
             f"{self.base_url}/api/chat",
+            headers=self._headers,
             json={
                 "model": self.model,
                 "messages": messages,
@@ -71,16 +79,25 @@ class OllamaAgentClient:
             "options": {"num_ctx": self.context_length},
         }
         with self._client.stream(
-            "POST", f"{self.base_url}/api/chat", json=payload
+            "POST", f"{self.base_url}/api/chat", headers=self._headers, json=payload
         ) as response:
             response.raise_for_status()
+            done_seen = False
             for line in response.iter_lines():
                 if not line.strip():
                     continue
-                value = json.loads(line)
+                try:
+                    value = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    raise OllamaStreamError(
+                        "Ollama stream chunk is not valid JSON"
+                    ) from exc
                 if not isinstance(value, dict):
-                    raise RuntimeError("Ollama stream chunk must be an object")
+                    raise OllamaStreamError("Ollama stream chunk must be an object")
+                done_seen = done_seen or value.get("done") is True
                 yield value
+            if not done_seen:
+                raise OllamaStreamError("Ollama stream ended before completion")
 
     def close(self) -> None:
         self._client.close()
