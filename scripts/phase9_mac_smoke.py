@@ -12,6 +12,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 from intentfence_analytics.cli import run_stored_benchmark
@@ -105,7 +106,12 @@ def _done(content: str) -> dict[str, Any]:
     }
 
 
-def _contract(*, tools: list[str], resources: list[str]) -> IntentContract:
+def _contract(
+    *,
+    tools: list[str],
+    resources: list[str],
+    destinations: list[str],
+) -> IntentContract:
     now = datetime.now(UTC)
     return IntentContract(
         intent_id="phase9-live-smoke-intent",
@@ -114,7 +120,7 @@ def _contract(*, tools: list[str], resources: list[str]) -> IntentContract:
         allowed_tools=tools,
         allowed_resources=resources,
         forbidden_resources=["credentials", "environment_secrets", "ssh_keys"],
-        allowed_destinations=["poisoned.example"],
+        allowed_destinations=destinations,
         approval_required_actions=["send_message", "http_request"],
         risk_tolerance=RiskTolerance.MEDIUM,
         issued_at=now - timedelta(minutes=1),
@@ -173,6 +179,14 @@ def _first_result_url(search_payload: dict[str, object]) -> str | None:
     return None
 
 
+def _result_host(url: str) -> str:
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower().strip(".")
+    if parsed.scheme not in {"http", "https"} or not host:
+        raise RuntimeError("live web result URL is not a valid HTTP(S) destination")
+    return host
+
+
 def _benign_flow(
     web: OllamaWebProvider,
     *,
@@ -205,6 +219,7 @@ def _benign_flow(
             _contract(
                 tools=["browse_web", "write_file"],
                 resources=["workspace/research-summary.txt"],
+                destinations=[_result_host(result_url)],
             ),
         )
         written = environment.resolve("workspace/research-summary.txt").exists()
@@ -247,6 +262,7 @@ def _poisoned_flow() -> dict[str, object]:
             _contract(
                 tools=["browse_web", "read_file", "http_request"],
                 resources=[],
+                destinations=["poisoned.example"],
             ),
         )
         decisions = [item.decision for item in run.executions]

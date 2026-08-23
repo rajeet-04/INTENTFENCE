@@ -1,5 +1,9 @@
 import pytest
-from scripts.phase9_mac_smoke import validate_ollama_preflight
+from scripts.phase9_mac_smoke import (
+    _benign_flow,
+    _result_host,
+    validate_ollama_preflight,
+)
 
 TAGS = {
     "models": [
@@ -7,6 +11,22 @@ TAGS = {
         {"name": "qwen2.5:7b", "details": {"parameter_size": "7.6B"}},
     ]
 }
+
+
+class FakeWebProvider:
+    def search(self, query: str, *, max_results: int = 5) -> dict[str, object]:
+        return {
+            "results": [
+                {
+                    "title": query,
+                    "url": "https://docs.example/intentfence",
+                    "content": f"safe result limit {max_results}",
+                }
+            ]
+        }
+
+    def fetch(self, url: str) -> dict[str, object]:
+        return {"title": "safe", "url": url, "content": "public"}
 
 
 def test_preflight_accepts_configured_model_and_live_web_key_without_exposing_key() -> None:
@@ -56,3 +76,15 @@ def test_preflight_requires_key_only_when_live_web_is_enabled() -> None:
             live_web_enabled=True,
             api_key="   ",
         )
+
+
+def test_benign_flow_authorizes_the_actual_live_result_host() -> None:
+    assert _result_host("https://docs.example/intentfence") == "docs.example"
+    result = _benign_flow(
+        FakeWebProvider(),
+        query="IntentFence documentation",
+        result_url="https://docs.example/intentfence",
+    )
+
+    assert result["all_allowed"] is True
+    assert result["workspace_write_completed"] is True
