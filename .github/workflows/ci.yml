@@ -36,6 +36,17 @@ jobs:
         run: python -m ruff check packages/contracts packages/classification packages/policy packages/state packages/dataflow packages/analytics apps/api
       - name: Test backend
         run: python -m pytest packages/contracts/tests packages/classification/tests packages/policy/tests packages/state/tests packages/dataflow/tests packages/analytics/tests apps/api/tests -q
+      - name: Run deterministic Phase 9 security smoke
+        run: >-
+          python -m pytest
+          apps/api/tests/test_phase9_redteam_authoritative.py
+          apps/api/tests/test_phase9_sandbox_runtime.py
+          apps/api/tests/test_phase9_mcp.py
+          apps/api/tests/test_phase9_ollama_agent.py
+          apps/api/tests/test_phase9_ollama_web.py
+          apps/api/tests/test_phase9_real_demo.py
+          apps/api/tests/test_phase9_mac_smoke.py
+          -q
       - name: Run controlled Phase 8 benchmark
         run: |
           rm -f /tmp/phase8-benchmark.sqlite /tmp/phase8-summary.json

@@ -1,6 +1,6 @@
 # Phase 9 Reconciliation Handoff
 
-Status: implementation in progress
+Status: deterministic GREEN candidate; live-Mac acceptance pending
 
 Branch: `rajeet/phase-9-integration-hardening`
 
@@ -20,4 +20,14 @@ Phase 9 implementation follows:
 8. M4 Mac live smoke before HARD PASS;
 9. exact synthetic-merge tree proof before merge.
 
-This file will be updated with final CI, live-Mac, review, and merge-tree evidence before Phase 9 is closed.
+Local candidate evidence on 2026-08-23:
+
+- backend Ruff: PASS;
+- backend tests: 335 passed;
+- dashboard tests: 13 passed;
+- dashboard lint, typecheck, and production build: PASS;
+- Phase 8 regression: ABR 100%, STCR 100%, FPR 0%;
+- native Ollama: `0.32.15` reachable on `127.0.0.1:11434`;
+- deterministic Phase 9 focused smoke: 15 passed before the final CI-target aggregation.
+
+The remaining hard gate is `make phase9-mac-smoke` with local `qwen3:14b` and a locally supplied Ollama Web API key, followed by final PR CI/review and merge-tree proof. This is not yet a Phase 9 HARD PASS.
