@@ -1,18 +1,16 @@
 import json
+from collections.abc import Iterator
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from typing import Protocol
-from uuid import uuid4
 
 import httpx
 from intentfence_contracts import IntentContract, SourceContext
 
-from .fail_closed import build_fail_closed_execution
+from intentfence_api.agent.tool_executor import OllamaToolExecutor
+
 from .models import GatewayExecution
 from .runtime import SandboxProtectedToolRuntime
 from .service import IntentFenceGateway
-from .tool_aliases import canonical_tool_name
-from .tools import CORE_TOOL_NAMES, normalize_tool_request
 
 
 class OllamaChatProvider(Protocol):
@@ -23,6 +21,10 @@ class OllamaWebProviderProtocol(Protocol):
     def search(self, query: str, *, max_results: int = 5) -> dict[str, object]: ...
 
     def fetch(self, url: str) -> dict[str, object]: ...
+
+
+class OllamaStreamError(RuntimeError):
+    """The Ollama response stream was malformed or ended before completion."""
 
 
 @dataclass(frozen=True)
@@ -39,26 +41,70 @@ class OllamaAgentClient:
         base_url: str,
         model: str,
         context_length: int,
+        timeout_seconds: float = 300.0,
+        api_key: str | None = None,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.context_length = context_length
-        self._client = httpx.Client(transport=transport, timeout=60.0)
+        self.timeout_seconds = timeout_seconds
+        key = api_key.strip() if api_key else ""
+        self._headers = {"Authorization": f"Bearer {key}"} if key else {}
+        self._client = httpx.Client(transport=transport, timeout=timeout_seconds)
 
     def chat(self, messages: list[dict], tools: list[dict]) -> dict:
         response = self._client.post(
             f"{self.base_url}/api/chat",
+            headers=self._headers,
             json={
                 "model": self.model,
                 "messages": messages,
                 "tools": tools,
                 "stream": False,
+                "think": False,
                 "options": {"num_ctx": self.context_length},
             },
         )
         response.raise_for_status()
         return response.json()
+
+    def iter_chat(
+        self,
+        messages: list[dict],
+        tools: list[dict],
+        *,
+        reasoning_mode: object = None,
+    ) -> Iterator[dict]:
+        del reasoning_mode
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "tools": tools,
+            "stream": True,
+            "think": False,
+            "options": {"num_ctx": self.context_length},
+        }
+        with self._client.stream(
+            "POST", f"{self.base_url}/api/chat", headers=self._headers, json=payload
+        ) as response:
+            response.raise_for_status()
+            done_seen = False
+            for line in response.iter_lines():
+                if not line.strip():
+                    continue
+                try:
+                    value = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    raise OllamaStreamError(
+                        "Ollama stream chunk is not valid JSON"
+                    ) from exc
+                if not isinstance(value, dict):
+                    raise OllamaStreamError("Ollama stream chunk must be an object")
+                done_seen = done_seen or value.get("done") is True
+                yield value
+            if not done_seen:
+                raise OllamaStreamError("Ollama stream ended before completion")
 
     def close(self) -> None:
         self._client.close()
@@ -81,6 +127,13 @@ class OllamaAgentRunner:
         self.gateway = gateway or IntentFenceGateway()
         self.agent_id = agent_id
         self.max_steps = max_steps
+        self.executor = OllamaToolExecutor(
+            runtime=runtime,
+            web_provider=web_provider,
+            gateway=self.gateway,
+            agent_id=agent_id,
+            scenario_id="phase9-ollama-agent",
+        )
 
     def run(
         self,
@@ -113,115 +166,27 @@ class OllamaAgentRunner:
 
             for tool_call in tool_calls:
                 external_name, arguments = _parse_tool_call(tool_call)
-                canonical_name = canonical_tool_name(external_name)
-                request_id = f"ollama-{uuid4().hex}"
-                data_refs = _data_refs(arguments)
-                if canonical_name not in CORE_TOOL_NAMES:
-                    execution = build_fail_closed_execution(
-                        request_id=request_id,
-                        session_id=intent_contract.session_id,
-                        intent_contract=intent_contract,
-                        tool=external_name,
-                        data_refs=data_refs,
-                        rule_id="OLLAMA_TOOL_UNSUPPORTED",
-                        reason="The Ollama tool name is outside the protected tool boundary.",
-                        scenario_id="phase9-ollama-agent",
-                    )
-                else:
-                    normalized = normalize_tool_request(
-                        request_id=request_id,
-                        session_id=intent_contract.session_id,
-                        agent_id=self.agent_id,
-                        intent_id=intent_contract.intent_id,
-                        tool=canonical_name,
-                        arguments=arguments,
-                        data_refs=data_refs,
-                        source_context=source_context,
-                        timestamp=datetime.now(UTC),
-                    )
-                    execution = self.gateway.intercept_authoritative(
-                        normalized,
-                        intent_contract,
-                        handler=self._handler(external_name, canonical_name),
-                        scenario_id="phase9-ollama-agent",
-                    )
-                executions.append(execution)
+                result = self.executor.execute(
+                    external_name=external_name,
+                    arguments=arguments,
+                    intent_contract=intent_contract,
+                    source_context=source_context,
+                )
+                executions.append(result.execution)
                 messages.append(
                     {
                         "role": "tool",
                         "tool_name": external_name,
-                        "content": self._tool_message(execution),
+                        "content": self.executor.tool_message(result),
                     }
                 )
-                if execution.executed and external_name in {"web_search", "web_fetch"}:
-                    source_context = SourceContext.EXTERNAL_WEB
+                source_context = result.next_source_context
 
         return OllamaAgentRunResult(
             final_message=final_message,
             executions=tuple(executions),
             steps=self.max_steps,
         )
-
-    def _handler(self, external_name: str, canonical_name: str):
-        if external_name == "web_search":
-            return self._web_search
-        if external_name == "web_fetch":
-            return self._web_fetch
-        return self.runtime.handler(canonical_name)
-
-    def _web_search(self, arguments: dict) -> dict:
-        query = arguments.get("query")
-        if not isinstance(query, str) or not query.strip():
-            raise ValueError("web_search requires a query")
-        raw_max_results = arguments.get("max_results", 5)
-        if not isinstance(raw_max_results, int):
-            raise ValueError("web_search max_results must be an integer")
-        payload = self.web_provider.search(query.strip(), max_results=raw_max_results)
-        content_ref = self.runtime.environment.store_payload(
-            json.dumps(payload, sort_keys=True, default=str)
-        )
-        results = payload.get("results")
-        return {
-            "status": "searched",
-            "content_ref": content_ref,
-            "result_count": len(results) if isinstance(results, list) else 0,
-            "untrusted_content_present": True,
-        }
-
-    def _web_fetch(self, arguments: dict) -> dict:
-        url = arguments.get("url")
-        if not isinstance(url, str) or not url.strip():
-            raise ValueError("web_fetch requires a URL")
-        payload = self.web_provider.fetch(url.strip())
-        content_ref = self.runtime.environment.store_payload(
-            json.dumps(payload, sort_keys=True, default=str)
-        )
-        return {
-            "status": "fetched",
-            "content_ref": content_ref,
-            "untrusted_content_present": True,
-        }
-
-    def _tool_message(self, execution: GatewayExecution) -> str:
-        result = execution.result or {}
-        payload = None
-        for key in ("content_ref", "data_ref"):
-            reference = result.get(key)
-            if isinstance(reference, str):
-                payload = self.runtime.environment.payload(reference)
-                break
-        return json.dumps(
-            {
-                "decision": execution.decision.value,
-                "executed": execution.executed,
-                "reason": execution.reason,
-                "metadata": result,
-                "content": payload,
-            },
-            sort_keys=True,
-            default=str,
-        )
-
 
 def _assistant_message(message: dict) -> dict:
     assistant = {
@@ -234,45 +199,73 @@ def _assistant_message(message: dict) -> dict:
     return assistant
 
 
-def _parse_tool_call(tool_call: object) -> tuple[str, dict]:
+def _parse_tool_call(tool_call: object) -> tuple[str, object]:
     if not isinstance(tool_call, dict):
-        raise RuntimeError("Ollama returned a malformed tool call")
+        return "malformed_tool_call", None
     function = tool_call.get("function")
     if not isinstance(function, dict):
-        raise RuntimeError("Ollama tool call is missing a function")
+        return "malformed_tool_call", None
     name = function.get("name")
     arguments = function.get("arguments", {})
     if not isinstance(name, str) or not name:
-        raise RuntimeError("Ollama tool call is missing a function name")
-    if not isinstance(arguments, dict):
-        raise RuntimeError("Ollama tool call arguments must be an object")
+        return "malformed_tool_call", None
     return name, arguments
 
 
-def _data_refs(arguments: dict) -> list[str]:
-    return [
-        value
-        for key, value in arguments.items()
-        if key.endswith("_ref") and isinstance(value, str) and value
-    ]
-
-
-_OLLAMA_TOOL_DEFINITIONS = [
-    {
+def _tool_definition(
+    name: str,
+    description: str,
+    properties: dict[str, dict],
+    required: list[str],
+) -> dict:
+    return {
         "type": "function",
         "function": {
             "name": name,
-            "description": f"Request the controlled {name} capability through IntentFence.",
-            "parameters": {"type": "object", "additionalProperties": True},
+            "description": description,
+            "parameters": {
+                "type": "object",
+                "properties": properties,
+                "required": required,
+                "additionalProperties": True,
+            },
         },
     }
-    for name in (
+
+
+_OLLAMA_TOOL_DEFINITIONS = [
+    _tool_definition(
         "web_search",
+        "Search the public web. Use this first for current information.",
+        {
+            "query": {"type": "string", "description": "Focused public-web query"},
+            "max_results": {"type": "integer", "minimum": 1, "maximum": 10},
+        },
+        ["query"],
+    ),
+    _tool_definition(
         "web_fetch",
-        "browse_web",
-        "read_file",
+        "Fetch one public URL selected from web_search results for grounded details.",
+        {"url": {"type": "string", "description": "Absolute public result URL"}},
+        ["url"],
+    ),
+    _tool_definition("read_file", "Read a protected file.", {"path": {"type": "string"}}, ["path"]),
+    _tool_definition(
         "write_file",
+        "Write a protected file.",
+        {"path": {"type": "string"}, "content": {"type": "string"}},
+        ["path", "content"],
+    ),
+    _tool_definition(
         "send_message",
+        "Send a message through a protected destination.",
+        {"destination": {"type": "string"}, "content": {"type": "string"}},
+        ["destination", "content"],
+    ),
+    _tool_definition(
         "http_request",
-    )
+        "Make a protected HTTP request.",
+        {"url": {"type": "string"}, "method": {"type": "string"}},
+        ["url"],
+    ),
 ]

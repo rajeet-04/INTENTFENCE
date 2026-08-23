@@ -1,4 +1,8 @@
 def test_health_endpoint(client):
     response = client.get("/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "service": "intentfence-api"}
+    assert response.json() == {
+        "status": "ok",
+        "service": "intentfence-api",
+        "release": "phase10-agent-console-v1",
+    }

