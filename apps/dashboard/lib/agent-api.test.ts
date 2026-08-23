@@ -57,3 +57,33 @@ test("POST stream reader delivers fragmented events and preserves the abort sign
     revise_intent: false,
   });
 });
+
+test("agent chat uses the dashboard's configured public API base URL", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+  let requestedUrl = "";
+  process.env.NEXT_PUBLIC_API_BASE_URL = "http://127.0.0.1:8765";
+  globalThis.fetch = async (input) => {
+    requestedUrl = String(input);
+    return new Response(new ReadableStream({ start: (controller) => controller.close() }));
+  };
+  try {
+    await streamAgentChat(
+      {
+        history: [],
+        message: "Hello",
+        objective: "Answer safely",
+        web_research_enabled: false,
+        revise_intent: false,
+      },
+      { onEvent: () => undefined },
+      new AbortController().signal,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalBaseUrl === undefined) delete process.env.NEXT_PUBLIC_API_BASE_URL;
+    else process.env.NEXT_PUBLIC_API_BASE_URL = originalBaseUrl;
+  }
+
+  expect(requestedUrl).toBe("http://127.0.0.1:8765/agent/chat/stream");
+});

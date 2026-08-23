@@ -1,4 +1,5 @@
 import { AgentStreamParseError, parseSseFrames } from "./agent-stream";
+import { getApiBaseUrl } from "./api";
 
 export type AgentContractSummary = {
   session_id: string;
@@ -77,7 +78,7 @@ export async function streamAgentChat(
   handlers: { onEvent: (event: AgentStreamEvent) => void },
   signal: AbortSignal,
 ): Promise<void> {
-  const baseUrl = process.env.NEXT_PUBLIC_INTENTFENCE_API_URL ?? "http://localhost:8000";
+  const baseUrl = getApiBaseUrl();
   const response = await fetch(`${baseUrl}/agent/chat/stream`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
