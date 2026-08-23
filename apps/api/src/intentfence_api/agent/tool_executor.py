@@ -19,6 +19,14 @@ from .sources import normalize_fetch_source, normalize_search_sources
 from .url_safety import require_public_http_url
 
 _MAX_TOOL_PAYLOAD_CHARS = 128_000
+_AGENT_EXTERNAL_TOOL_NAMES = {
+    "web_search",
+    "web_fetch",
+    "read_file",
+    "write_file",
+    "send_message",
+    "http_request",
+}
 
 
 class ToolProviderFailure(RuntimeError):
@@ -64,6 +72,23 @@ class OllamaToolExecutor:
     ) -> ToolExecutionResult:
         request_id = f"ollama-{uuid4().hex}"
         sources: tuple[CitationSource, ...] = ()
+
+        if external_name not in _AGENT_EXTERNAL_TOOL_NAMES:
+            execution = build_fail_closed_execution(
+                request_id=request_id,
+                session_id=intent_contract.session_id,
+                intent_contract=intent_contract,
+                tool=external_name,
+                data_refs=_data_refs(arguments) if isinstance(arguments, dict) else [],
+                rule_id="OLLAMA_TOOL_UNSUPPORTED",
+                reason="The Ollama tool name is outside the protected Agent boundary.",
+                scenario_id=self.scenario_id,
+            )
+            return ToolExecutionResult(
+                execution=execution,
+                sources=(),
+                next_source_context=source_context,
+            )
 
         if not isinstance(arguments, dict):
             execution = build_fail_closed_execution(

@@ -400,16 +400,16 @@ def test_orchestrator_does_not_misreport_web_fetch_404_as_missing_model(
 
 
 @pytest.mark.parametrize(
-    ("tool", "arguments"),
+    ("tool", "arguments", "expected_rule"),
     [
-        ("web_search", {}),
-        ("web_search", {"query": "news", "max_results": "many"}),
-        ("web_fetch", {}),
-        ("browse_web", {}),
+        ("web_search", {}, "TOOL_ARGUMENT_INVALID"),
+        ("web_search", {"query": "news", "max_results": "many"}, "TOOL_ARGUMENT_INVALID"),
+        ("web_fetch", {}, "TOOL_ARGUMENT_INVALID"),
+        ("browse_web", {}, "OLLAMA_TOOL_UNSUPPORTED"),
     ],
 )
 def test_malformed_model_tool_arguments_get_block_receipt_and_recovery(
-    tmp_path, tool: str, arguments: dict
+    tmp_path, tool: str, arguments: dict, expected_rule: str
 ) -> None:
     orchestrator, store, _ = build_orchestrator(
         tmp_path,
@@ -436,7 +436,7 @@ def test_malformed_model_tool_arguments_get_block_receipt_and_recovery(
     assert decision.decision is DecisionType.BLOCK
     assert decision.executed is False
     assert decision.receipt_id
-    assert decision.matched_rules == ["TOOL_ARGUMENT_INVALID"]
+    assert decision.matched_rules == [expected_rule]
     assert any(event.event == AgentEventType.ASSISTANT_DONE for event in events)
 
 

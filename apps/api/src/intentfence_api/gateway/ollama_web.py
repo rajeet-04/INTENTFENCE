@@ -1,4 +1,6 @@
 import json
+import re
+from html import unescape
 
 import httpx
 
@@ -23,10 +25,14 @@ class OllamaWebProvider:
         )
 
     def fetch(self, url: str) -> dict[str, object]:
-        return self._post_json("/api/web_fetch", {"url": url})
+        try:
+            return self._post_json("/api/web_fetch", {"url": url})
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code != 404:
+                raise
+        return self._direct_public_fetch(url)
 
     def _post_json(self, path: str, payload: dict[str, object]) -> dict[str, object]:
-        body = bytearray()
         with self._client.stream(
             "POST",
             f"{self.base_url}{path}",
@@ -34,14 +40,32 @@ class OllamaWebProvider:
             json=payload,
         ) as response:
             response.raise_for_status()
-            for chunk in response.iter_bytes(chunk_size=64 * 1024):
-                if len(chunk) > _MAX_PROVIDER_RESPONSE_BYTES - len(body):
-                    raise ValueError("web provider response exceeded the safe size limit")
-                body.extend(chunk)
+            body = _read_bounded_body(response)
         value = json.loads(body)
         if not isinstance(value, dict):
             raise ValueError("web provider response must be an object")
         return value
+
+    def _direct_public_fetch(self, url: str) -> dict[str, object]:
+        with self._client.stream(
+            "GET",
+            url,
+            headers={"User-Agent": "IntentFence/0.10 public-research-fetch"},
+            follow_redirects=False,
+        ) as response:
+            response.raise_for_status()
+            content_type = response.headers.get("content-type", "").lower()
+            if not content_type.startswith(("text/", "application/xhtml+xml")):
+                raise ValueError("direct public fetch requires a text response")
+            body = _read_bounded_body(response)
+        content = body.decode("utf-8", errors="replace")
+        title_match = re.search(r"<title[^>]*>(.*?)</title>", content, re.I | re.S)
+        title = (
+            unescape(re.sub(r"\s+", " ", title_match.group(1))).strip()
+            if title_match
+            else "Fetched public page"
+        )
+        return {"title": title[:240], "content": content, "links": []}
 
     def _authorization_headers(self) -> dict[str, str]:
         key = self.api_key.strip() if self.api_key else ""
@@ -51,3 +75,12 @@ class OllamaWebProvider:
 
     def close(self) -> None:
         self._client.close()
+
+
+def _read_bounded_body(response: httpx.Response) -> bytearray:
+    body = bytearray()
+    for chunk in response.iter_bytes(chunk_size=64 * 1024):
+        if len(chunk) > _MAX_PROVIDER_RESPONSE_BYTES - len(body):
+            raise ValueError("web provider response exceeded the safe size limit")
+        body.extend(chunk)
+    return body

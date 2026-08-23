@@ -146,25 +146,21 @@ def test_dev_reuse_requires_phase10_specific_api_and_dashboard_markers() -> None
     ) is True
 
 
-def test_live_gate_accepts_provider_fetch_failure_only_when_it_fails_closed() -> None:
+def test_live_gate_requires_search_fetch_and_answer_after_final_tool() -> None:
     result = validate_live_flow(
-        allowed_tools=["web_search"],
+        allowed_tools=["web_search", "web_fetch"],
         decision_records=[
             {"tool": "web_search", "decision": "ALLOW", "rules": []},
-            {
-                "tool": "web_fetch",
-                "decision": "BLOCK",
-                "rules": ["TOOL_PROVIDER_ERROR"],
-            },
+            {"tool": "web_fetch", "decision": "ALLOW", "rules": []},
         ],
         source_count=1,
         answer_chars=120,
+        assistant_done=True,
     )
 
     assert result == {
         "search_allowed": True,
-        "fetch_allowed": False,
-        "fetch_failed_closed": True,
+        "fetch_allowed": True,
     }
 
 
@@ -181,4 +177,14 @@ def test_live_gate_rejects_missing_or_non_provider_fetch_decision() -> None:
             ],
             source_count=1,
             answer_chars=120,
+            assistant_done=True,
+        )
+
+    with pytest.raises(RuntimeError, match="cited answer"):
+        validate_live_flow(
+            allowed_tools=["web_search", "web_fetch"],
+            decision_records=[],
+            source_count=1,
+            answer_chars=0,
+            assistant_done=False,
         )

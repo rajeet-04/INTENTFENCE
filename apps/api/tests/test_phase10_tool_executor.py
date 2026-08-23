@@ -122,3 +122,20 @@ def test_unsupported_tool_blocks_without_handler_lookup(tmp_path) -> None:
     assert result.execution.event.matched_rules == ["OLLAMA_TOOL_UNSUPPORTED"]
     assert result.sources == ()
     assert json.loads(executor.tool_message(result))["content"] is None
+
+
+def test_raw_browse_web_alias_cannot_access_sandbox_payload(tmp_path) -> None:
+    executor = build_executor(tmp_path)
+    result = executor.execute(
+        external_name="browse_web",
+        arguments={"url": "sandbox://.env"},
+        intent_contract=research_contract(),
+        source_context=SourceContext.USER,
+    )
+
+    message = json.loads(executor.tool_message(result))
+    assert result.execution.decision is DecisionType.BLOCK
+    assert result.execution.executed is False
+    assert result.execution.event.matched_rules == ["OLLAMA_TOOL_UNSUPPORTED"]
+    assert message["content"] is None
+    assert "SENTINEL_SECRET" not in json.dumps(message)

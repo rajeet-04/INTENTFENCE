@@ -145,6 +145,49 @@ def test_web_fetch_uses_official_endpoint_and_returns_page_payload() -> None:
     assert result["content"] == "Public hotel page"
 
 
+def test_web_fetch_falls_back_to_bounded_direct_public_get_after_hosted_404() -> None:
+    requests: list[dict[str, object]] = []
+
+    def receive(request: httpx.Request) -> httpx.Response:
+        requests.append(
+            {
+                "method": request.method,
+                "url": str(request.url),
+                "authorization": request.headers.get("Authorization"),
+            }
+        )
+        if request.method == "POST":
+            return httpx.Response(404, request=request)
+        return httpx.Response(
+            200,
+            request=request,
+            headers={"content-type": "text/html; charset=utf-8"},
+            text="<html><title>Public page</title><body>Verified content</body></html>",
+        )
+
+    provider = OllamaWebProvider(
+        api_key="test-key",
+        transport=httpx.MockTransport(receive),
+    )
+
+    result = provider.fetch("https://public.example/article")
+
+    assert result["title"] == "Public page"
+    assert "Verified content" in result["content"]
+    assert requests == [
+        {
+            "method": "POST",
+            "url": "https://ollama.com/api/web_fetch",
+            "authorization": "Bearer test-key",
+        },
+        {
+            "method": "GET",
+            "url": "https://public.example/article",
+            "authorization": None,
+        },
+    ]
+
+
 def test_web_aliases_map_to_browse_web_without_expanding_core_tool_set() -> None:
     assert canonical_tool_name("web_search") == "browse_web"
     assert canonical_tool_name("web_fetch") == "browse_web"

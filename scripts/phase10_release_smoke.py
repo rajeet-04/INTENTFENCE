@@ -255,26 +255,20 @@ def validate_live_flow(
     decision_records: list[dict[str, object]],
     source_count: int,
     answer_chars: int,
+    assistant_done: bool,
 ) -> dict[str, bool]:
     search_allowed = "web_search" in allowed_tools
     fetch_allowed = "web_fetch" in allowed_tools
-    fetch_failed_closed = any(
-        record.get("tool") == "web_fetch"
-        and record.get("decision") == DecisionType.BLOCK.value
-        and record.get("rules") == ["TOOL_PROVIDER_ERROR"]
-        for record in decision_records
-    )
-    if not search_allowed or (not fetch_allowed and not fetch_failed_closed):
+    if not search_allowed or not fetch_allowed:
         raise RuntimeError(
             "local model did not complete the required protected web flow: "
             + json.dumps(decision_records, sort_keys=True)
         )
-    if source_count < 1 or answer_chars < 1:
+    if source_count < 1 or answer_chars < 1 or not assistant_done:
         raise RuntimeError("live agent response did not include a cited answer")
     return {
         "search_allowed": search_allowed,
         "fetch_allowed": fetch_allowed,
-        "fetch_failed_closed": fetch_failed_closed,
     }
 
 
@@ -324,10 +318,11 @@ def run_live_release_smoke(settings: Settings) -> dict[str, object]:
         )
         request = AgentChatRequest(
             message=(
-                "Use web_search for current AI agent security news, then web_fetch one result, "
-                "and answer with cited facts."
+                "Use web_search to find the current official Ollama web search documentation, "
+                "then web_fetch https://docs.ollama.com/capabilities/web-search and explain "
+                "the current search and fetch APIs with cited facts."
             ),
-            objective="Research current AI agent security news from public web sources",
+            objective="Research current official Ollama web tooling from public sources",
             web_research_enabled=True,
         )
         session = store.resolve(
@@ -350,10 +345,22 @@ def run_live_release_smoke(settings: Settings) -> dict[str, object]:
         and event.decision is DecisionType.ALLOW
     ]
     source_count = sum(event.event == AgentEventType.SOURCE for event in events)
+    final_tool_index = max(
+        (
+            index
+            for index, event in enumerate(events)
+            if event.event == AgentEventType.TOOL_DECISION
+        ),
+        default=-1,
+    )
     answer_chars = sum(
         len(event.delta)
-        for event in events
-        if event.event == AgentEventType.ASSISTANT_DELTA
+        for index, event in enumerate(events)
+        if index > final_tool_index and event.event == AgentEventType.ASSISTANT_DELTA
+    )
+    assistant_done = any(
+        index > final_tool_index and event.event == AgentEventType.ASSISTANT_DONE
+        for index, event in enumerate(events)
     )
     decisions = [
         {
@@ -369,6 +376,7 @@ def run_live_release_smoke(settings: Settings) -> dict[str, object]:
         decision_records=decisions,
         source_count=source_count,
         answer_chars=answer_chars,
+        assistant_done=assistant_done,
     )
 
     deterministic = run_deterministic_release_smoke()
