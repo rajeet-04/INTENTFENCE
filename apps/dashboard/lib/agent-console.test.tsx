@@ -144,7 +144,11 @@ test("Stop aborts the active request and Retry resubmits a recoverable prompt", 
 });
 
 test("explicit revision disables web and the controlled browse probe is visibly blocked", async () => {
-  const requests: Array<{ revise_intent: boolean; web_research_enabled: boolean }> = [];
+  const requests: Array<{
+    revise_intent: boolean;
+    web_research_enabled: boolean;
+    controlled_probe?: boolean;
+  }> = [];
   const stream: AgentStreamFunction = async (request, handlers) => {
     requests.push(request);
     const revised = {
@@ -197,7 +201,11 @@ test("explicit revision disables web and the controlled browse probe is visibly 
   expect(requests[1]).toMatchObject({ revise_intent: true, web_research_enabled: false });
   fireEvent.click(screen.getByRole("button", { name: "Run controlled browse probe" }));
   await screen.findByText("The revised Intent Contract does not allow web research.");
-  expect(requests[2]).toMatchObject({ revise_intent: false, web_research_enabled: false });
+  expect(requests[2]).toMatchObject({
+    revise_intent: false,
+    web_research_enabled: false,
+    controlled_probe: true,
+  });
 });
 
 test("Evidence navigation keeps the attack simulation and measured KPI console mounted", async () => {

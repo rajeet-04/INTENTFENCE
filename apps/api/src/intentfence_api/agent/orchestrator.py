@@ -147,6 +147,62 @@ class Phase10ChatOrchestrator:
         )
         sequence += 1
 
+        if request.revise_intent:
+            web_state = "enabled" if session.contract.allowed_tools else "disabled"
+            yield AssistantDeltaEvent(
+                sequence=sequence,
+                delta=(
+                    f"Intent Contract revised to version "
+                    f"{session.contract.contract_version}; web research is {web_state}."
+                ),
+            )
+            sequence += 1
+            yield AssistantDoneEvent(
+                sequence=sequence,
+                source_count=0,
+                tool_count=0,
+                contract=self.session_store.summary(session),
+            )
+            return
+
+        if request.controlled_probe:
+            yield ToolProposedEvent(
+                sequence=sequence,
+                tool="web_search",
+                argument_summary={"query_present": True, "query_length": 35},
+            )
+            sequence += 1
+            result = self.executor.execute(
+                external_name="web_search",
+                arguments={"query": "current public agent security news"},
+                intent_contract=session.contract,
+                source_context=SourceContext.USER,
+            )
+            execution = result.execution
+            yield ToolDecisionEvent(
+                sequence=sequence,
+                tool="web_search",
+                decision=execution.decision,
+                executed=execution.executed,
+                reason=execution.reason,
+                matched_rules=execution.event.matched_rules,
+                receipt_id=execution.receipt_id,
+                latency_ms=execution.event.latency_ms,
+            )
+            sequence += 1
+            yield AssistantDeltaEvent(
+                sequence=sequence,
+                delta="Controlled browse probe stopped at the active Intent Contract boundary.",
+            )
+            sequence += 1
+            yield AssistantDoneEvent(
+                sequence=sequence,
+                source_count=0,
+                tool_count=1,
+                contract=self.session_store.summary(session),
+            )
+            return
+
         for _turn in range(self.max_model_turns):
             yield ModelStatusEvent(sequence=sequence, status=next_status)
             sequence += 1
@@ -159,6 +215,8 @@ class Phase10ChatOrchestrator:
                 content = message.get("content")
                 if isinstance(content, str) and content:
                     content_parts.append(content)
+                    yield AssistantDeltaEvent(sequence=sequence, delta=content)
+                    sequence += 1
                 chunk_tool_calls = message.get("tool_calls")
                 if isinstance(chunk_tool_calls, list):
                     tool_calls.extend(chunk_tool_calls)
@@ -172,9 +230,6 @@ class Phase10ChatOrchestrator:
             messages.append(assistant_message)
 
             if not tool_calls:
-                for part in content_parts:
-                    yield AssistantDeltaEvent(sequence=sequence, delta=part)
-                    sequence += 1
                 yield AssistantDoneEvent(
                     sequence=sequence,
                     source_count=len(seen_urls),
@@ -199,6 +254,7 @@ class Phase10ChatOrchestrator:
                     intent_contract=session.contract,
                     source_context=source_context,
                 )
+                tool_message = self.executor.tool_message(result)
                 tool_count += 1
                 execution = result.execution
                 yield ToolDecisionEvent(
@@ -223,7 +279,7 @@ class Phase10ChatOrchestrator:
                     {
                         "role": "tool",
                         "tool_name": external_name,
-                        "content": self.executor.tool_message(result),
+                        "content": tool_message,
                     }
                 )
                 source_context = result.next_source_context
@@ -237,7 +293,9 @@ class Phase10ChatOrchestrator:
         raise RuntimeError("agent model turn limit reached")
 
 
-def _safe_argument_summary(tool: str, arguments: dict) -> dict[str, str | int | bool]:
+def _safe_argument_summary(tool: str, arguments: object) -> dict[str, str | int | bool]:
+    if not isinstance(arguments, dict):
+        return {"arguments_valid": False}
     summary: dict[str, str | int | bool] = {}
     query = arguments.get("query")
     if isinstance(query, str):

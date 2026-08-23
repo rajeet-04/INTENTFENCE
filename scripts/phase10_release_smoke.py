@@ -249,6 +249,35 @@ def _api_contract_available() -> bool:
     return any(getattr(route, "path", None) == "/agent/chat/stream" for route in app.routes)
 
 
+def validate_live_flow(
+    *,
+    allowed_tools: list[str],
+    decision_records: list[dict[str, object]],
+    source_count: int,
+    answer_chars: int,
+) -> dict[str, bool]:
+    search_allowed = "web_search" in allowed_tools
+    fetch_allowed = "web_fetch" in allowed_tools
+    fetch_failed_closed = any(
+        record.get("tool") == "web_fetch"
+        and record.get("decision") == DecisionType.BLOCK.value
+        and record.get("rules") == ["TOOL_PROVIDER_ERROR"]
+        for record in decision_records
+    )
+    if not search_allowed or (not fetch_allowed and not fetch_failed_closed):
+        raise RuntimeError(
+            "local model did not complete the required protected web flow: "
+            + json.dumps(decision_records, sort_keys=True)
+        )
+    if source_count < 1 or answer_chars < 1:
+        raise RuntimeError("live agent response did not include a cited answer")
+    return {
+        "search_allowed": search_allowed,
+        "fetch_allowed": fetch_allowed,
+        "fetch_failed_closed": fetch_failed_closed,
+    }
+
+
 def run_live_release_smoke(settings: Settings) -> dict[str, object]:
     base_url = settings.agent_ollama_base_url.rstrip("/")
     tags_payload: object = None
@@ -326,10 +355,21 @@ def run_live_release_smoke(settings: Settings) -> dict[str, object]:
         for event in events
         if event.event == AgentEventType.ASSISTANT_DELTA
     )
-    if "web_search" not in allowed_tools or "web_fetch" not in allowed_tools:
-        raise RuntimeError("local model did not complete the required protected search/fetch flow")
-    if source_count < 1 or answer_chars < 1:
-        raise RuntimeError("live agent response did not include a cited answer")
+    decisions = [
+        {
+            "tool": event.tool,
+            "decision": event.decision.value,
+            "rules": event.matched_rules,
+        }
+        for event in events
+        if event.event == AgentEventType.TOOL_DECISION
+    ]
+    live_flow = validate_live_flow(
+        allowed_tools=allowed_tools,
+        decision_records=decisions,
+        source_count=source_count,
+        answer_chars=answer_chars,
+    )
 
     deterministic = run_deterministic_release_smoke()
     return {
@@ -337,8 +377,7 @@ def run_live_release_smoke(settings: Settings) -> dict[str, object]:
         "mode": "live",
         "preflight": preflight,
         "live_agent": {
-            "search_allowed": True,
-            "fetch_allowed": True,
+            **live_flow,
             "source_count": source_count,
             "answer_chars": answer_chars,
         },

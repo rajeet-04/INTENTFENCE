@@ -2,6 +2,8 @@ import json
 
 import pytest
 from scripts.phase10_dev import (
+    _api_payloads_match_phase10,
+    _dashboard_body_matches_phase10,
     build_dev_preflight,
     development_commands,
     services_to_start,
@@ -9,6 +11,7 @@ from scripts.phase10_dev import (
 from scripts.phase10_release_smoke import (
     build_preflight_summary,
     run_deterministic_release_smoke,
+    validate_live_flow,
 )
 
 
@@ -118,3 +121,64 @@ def test_dev_startup_reuses_only_services_that_are_already_ready() -> None:
     assert services_to_start(api_ready=True, dashboard_ready=False) == (False, True)
     assert services_to_start(api_ready=False, dashboard_ready=True) == (True, False)
     assert services_to_start(api_ready=True, dashboard_ready=True) == (False, False)
+
+
+def test_dev_reuse_requires_phase10_specific_api_and_dashboard_markers() -> None:
+    legacy_health = {"status": "ok", "service": "intentfence-api"}
+    phase10_health = {
+        **legacy_health,
+        "release": "phase10-agent-console-v1",
+    }
+    readiness = {
+        "status": "configured",
+        "model": "qwen3:14b",
+        "ollama_available": True,
+        "model_available": True,
+        "web_configured": True,
+    }
+
+    assert _api_payloads_match_phase10(legacy_health, readiness) is False
+    assert _api_payloads_match_phase10(phase10_health, readiness) is True
+    assert _api_payloads_match_phase10(phase10_health, {"status": "ok"}) is False
+    assert _dashboard_body_matches_phase10(b"<title>IntentFence</title>") is False
+    assert _dashboard_body_matches_phase10(
+        b'<body data-intentfence-release="phase10-agent-console-v1">'
+    ) is True
+
+
+def test_live_gate_accepts_provider_fetch_failure_only_when_it_fails_closed() -> None:
+    result = validate_live_flow(
+        allowed_tools=["web_search"],
+        decision_records=[
+            {"tool": "web_search", "decision": "ALLOW", "rules": []},
+            {
+                "tool": "web_fetch",
+                "decision": "BLOCK",
+                "rules": ["TOOL_PROVIDER_ERROR"],
+            },
+        ],
+        source_count=1,
+        answer_chars=120,
+    )
+
+    assert result == {
+        "search_allowed": True,
+        "fetch_allowed": False,
+        "fetch_failed_closed": True,
+    }
+
+
+def test_live_gate_rejects_missing_or_non_provider_fetch_decision() -> None:
+    with pytest.raises(RuntimeError, match="protected web flow"):
+        validate_live_flow(
+            allowed_tools=["web_search"],
+            decision_records=[
+                {
+                    "tool": "web_fetch",
+                    "decision": "BLOCK",
+                    "rules": ["FORBIDDEN_TOOL"],
+                }
+            ],
+            source_count=1,
+            answer_chars=120,
+        )

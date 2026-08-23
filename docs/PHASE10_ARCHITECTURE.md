@@ -42,6 +42,8 @@ Browser history is bounded conversation context, not trusted security state. The
 
 Each parsed call enters the shared `OllamaToolExecutor`, which canonicalizes aliases, constructs a typed request, resolves data references, and calls `intercept_authoritative`. Search/fetch results are stored in the sandbox payload store and returned to the model as untrusted tool content. Sources are normalized independently for citation rendering.
 
+The Agent path uses an explicitly constructed deterministic/state/data-flow gateway so live research does not depend on a second semantic-model call. Phase 5 semantics remain integrated on the production `/gateway/intercept` surface and cannot override hard rules. This separation is intentional and covered by the deterministic and live Agent gates.
+
 ## Decision composition
 
 ```text
@@ -74,4 +76,4 @@ The dashboard parser handles arbitrary network chunking and updates a reducer-ow
 
 ## Deterministic and live evidence
 
-CI uses fake model/web providers but the real orchestrator, gateway, poison paths, hotel demo, and benchmark. `make phase10-live-smoke` additionally requires local Ollama and hosted search/fetch, and verifies that both tools are authorized, citations exist, the answer is non-empty, poison actions remain blocked, and no attacker sink executes.
+CI uses fake model/web providers but the real orchestrator, gateway, poison paths, hotel demo, and benchmark. `make phase10-live-smoke` additionally requires local Ollama and hosted web access. It verifies authorized search, citations, a non-empty answer, and either an authorized fetch or an authoritative `TOOL_PROVIDER_ERROR` receipt when the hosted fetch endpoint is unavailable. Poison actions remain blocked and no attacker sink executes.

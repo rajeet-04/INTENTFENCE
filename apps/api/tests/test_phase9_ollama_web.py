@@ -3,6 +3,7 @@ import json
 import httpx
 import pytest
 
+import intentfence_api.gateway.ollama_web as ollama_web_module
 from intentfence_api.config import Settings
 from intentfence_api.gateway.ollama_web import OllamaWebProvider
 from intentfence_api.gateway.tool_aliases import canonical_tool_name
@@ -36,6 +37,46 @@ def test_web_search_requires_api_key_when_called() -> None:
 
     with pytest.raises(RuntimeError, match="OLLAMA_API_KEY"):
         provider.search("hotel prices")
+
+
+def test_web_provider_rejects_response_before_buffering_beyond_safe_limit() -> None:
+    provider = OllamaWebProvider(
+        api_key="test-secret",
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(
+                200,
+                content=b'{"content":"' + (b"x" * 1_000_001) + b'"}',
+            )
+        ),
+    )
+
+    with pytest.raises(ValueError, match="safe size limit"):
+        provider.fetch("https://example.com/article")
+
+
+def test_web_provider_does_not_append_a_chunk_larger_than_remaining_capacity(
+    monkeypatch,
+) -> None:
+    appended_sizes: list[int] = []
+
+    class TrackingBytearray(bytearray):
+        def extend(self, value) -> None:
+            appended_sizes.append(len(value))
+            super().extend(value)
+
+    monkeypatch.setattr(ollama_web_module, "bytearray", TrackingBytearray, raising=False)
+    provider = OllamaWebProvider(
+        api_key="test-secret",
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(200, content=b"x" * 1_000_001)
+        ),
+    )
+
+    with pytest.raises(ValueError, match="safe size limit"):
+        provider.fetch("https://example.com/article")
+
+    assert sum(appended_sizes) <= 1_000_000
+    assert max(appended_sizes) <= 64 * 1024
 
 
 def test_web_search_uses_official_endpoint_and_authorization_header() -> None:

@@ -91,8 +91,8 @@ def test_source_normalization_deduplicates_and_rejects_unsafe_urls(tmp_path) -> 
     executor = build_executor(
         tmp_path,
         search_results=[
-            {"title": " First\u0000 ", "url": "https://example.com/a", "content": "One"},
-            {"title": "Duplicate", "url": "https://example.com/a", "content": "Two"},
+            {"title": " First\u0000 ", "url": "https://source.example/a", "content": "One"},
+            {"title": "Duplicate", "url": "https://source.example/a", "content": "Two"},
             {"title": "Local", "url": "file:///tmp/.env", "content": "Secret"},
             {"title": "Missing URL", "content": "Ignored"},
         ],
@@ -106,7 +106,7 @@ def test_source_normalization_deduplicates_and_rejects_unsafe_urls(tmp_path) -> 
     )
 
     assert [source.title for source in result.sources] == ["First"]
-    assert [str(source.url) for source in result.sources] == ["https://example.com/a"]
+    assert [str(source.url) for source in result.sources] == ["https://source.example/a"]
 
 
 def test_unsupported_tool_blocks_without_handler_lookup(tmp_path) -> None:

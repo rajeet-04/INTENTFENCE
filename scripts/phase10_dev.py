@@ -96,18 +96,48 @@ def _ollama_status(settings: Settings) -> tuple[bool, bool]:
     return True, available
 
 
-def _url_ready(url: str) -> bool:
+def _api_identity_ready(api_url: str) -> bool:
     try:
-        with urlopen(url, timeout=1.0) as response:
-            return 200 <= response.status < 500
+        with urlopen(f"{api_url}/health", timeout=1.0) as response:
+            health = json.loads(response.read(4096))
+        with urlopen(f"{api_url}/agent/readiness", timeout=2.0) as response:
+            readiness = json.loads(response.read(4096))
+        return _api_payloads_match_phase10(health, readiness)
+    except (OSError, URLError, ValueError):
+        return False
+
+
+def _api_payloads_match_phase10(health: object, readiness: object) -> bool:
+    return health == {
+        "status": "ok",
+        "service": "intentfence-api",
+        "release": "phase10-agent-console-v1",
+    } and isinstance(readiness, dict) and {
+        "status",
+        "model",
+        "ollama_available",
+        "model_available",
+        "web_configured",
+    }.issubset(readiness)
+
+
+def _dashboard_body_matches_phase10(body: bytes) -> bool:
+    return b'data-intentfence-release="phase10-agent-console-v1"' in body
+
+
+def _dashboard_identity_ready(dashboard_url: str) -> bool:
+    try:
+        with urlopen(dashboard_url, timeout=2.0) as response:
+            body = response.read(256_000)
+        return response.status == 200 and _dashboard_body_matches_phase10(body)
     except (OSError, URLError):
         return False
 
 
-def _wait_url(url: str, *, timeout_seconds: float) -> bool:
+def _wait_check(check, *, timeout_seconds: float) -> bool:
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:
-        if _url_ready(url):
+        if check():
             return True
         time.sleep(0.2)
     return False
@@ -158,8 +188,8 @@ def main() -> int:
     api_url = f"http://127.0.0.1:{settings.api_port}"
     dashboard_url = "http://127.0.0.1:3000"
     start_api, start_dashboard = services_to_start(
-        api_ready=_url_ready(f"{api_url}/health"),
-        dashboard_ready=_url_ready(dashboard_url),
+        api_ready=_api_identity_ready(api_url),
+        dashboard_ready=_dashboard_identity_ready(dashboard_url),
     )
     children: list[subprocess.Popen] = []
     if start_api:
@@ -178,14 +208,22 @@ def main() -> int:
     signal.signal(signal.SIGINT, stop)
     signal.signal(signal.SIGTERM, stop)
     try:
-        if not _wait_url(f"{api_url}/health", timeout_seconds=30):
+        if not _wait_check(lambda: _api_identity_ready(api_url), timeout_seconds=30):
             raise RuntimeError("IntentFence API did not become ready within 30 seconds")
-        if not _wait_url(dashboard_url, timeout_seconds=30):
+        if not _wait_check(
+            lambda: _dashboard_identity_ready(dashboard_url), timeout_seconds=30
+        ):
             raise RuntimeError("IntentFence dashboard did not become ready within 30 seconds")
         print(
             json.dumps(
                 {
-                    "status": "READY",
+                    "status": (
+                        "CONFIGURED"
+                        if preflight["ollama_available"]
+                        and preflight["model_available"]
+                        and preflight["web_api_key_configured"]
+                        else "DEGRADED"
+                    ),
                     "dashboard": dashboard_url,
                     "api": api_url,
                     "api_docs": f"{api_url}/docs",

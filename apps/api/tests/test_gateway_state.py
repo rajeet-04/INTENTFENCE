@@ -73,6 +73,20 @@ def test_gateway_state_store_starts_clean_and_persists_derived_security_facts() 
     assert "raw" not in updated.model_dump()
 
 
+def test_gateway_state_store_bounds_long_lived_agent_contexts() -> None:
+    store = GatewayStateStore(max_contexts=2)
+    first = _contract().model_copy(update={"session_id": "first", "intent_id": "first"})
+    second = _contract().model_copy(update={"session_id": "second", "intent_id": "second"})
+    third = _contract().model_copy(update={"session_id": "third", "intent_id": "third"})
+
+    store.get_or_create(first, now=NOW)
+    store.get_or_create(second, now=NOW)
+    store.get_or_create(third, now=NOW)
+
+    assert len(store._contexts) == 2
+    assert ("first", "first") not in store._contexts
+
+
 def test_gateway_state_store_does_not_trust_blocked_refs_as_active_data() -> None:
     store = GatewayStateStore()
     context = store.get_or_create(_contract(), now=NOW)

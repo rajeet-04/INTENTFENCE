@@ -175,18 +175,16 @@ def _assistant_message(message: dict) -> dict:
     return assistant
 
 
-def _parse_tool_call(tool_call: object) -> tuple[str, dict]:
+def _parse_tool_call(tool_call: object) -> tuple[str, object]:
     if not isinstance(tool_call, dict):
-        raise RuntimeError("Ollama returned a malformed tool call")
+        return "malformed_tool_call", None
     function = tool_call.get("function")
     if not isinstance(function, dict):
-        raise RuntimeError("Ollama tool call is missing a function")
+        return "malformed_tool_call", None
     name = function.get("name")
     arguments = function.get("arguments", {})
     if not isinstance(name, str) or not name:
-        raise RuntimeError("Ollama tool call is missing a function name")
-    if not isinstance(arguments, dict):
-        raise RuntimeError("Ollama tool call arguments must be an object")
+        return "malformed_tool_call", None
     return name, arguments
 
 
@@ -225,12 +223,6 @@ _OLLAMA_TOOL_DEFINITIONS = [
         "web_fetch",
         "Fetch one public URL selected from web_search results for grounded details.",
         {"url": {"type": "string", "description": "Absolute public result URL"}},
-        ["url"],
-    ),
-    _tool_definition(
-        "browse_web",
-        "Request the generic protected browsing capability.",
-        {"url": {"type": "string"}},
         ["url"],
     ),
     _tool_definition("read_file", "Read a protected file.", {"path": {"type": "string"}}, ["path"]),

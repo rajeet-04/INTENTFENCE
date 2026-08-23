@@ -18,11 +18,11 @@ IntentFence separates **reasoning** from **authority**:
 1. The server compiles the user's objective into a strict, versioned Intent Contract.
 2. Local `qwen3:14b` may propose search, fetch, file, message, or HTTP actions.
 3. Every proposal crosses the authoritative IntentFence gateway before execution.
-4. Deterministic policy, stateful chain analysis, purpose-bound data flow, and optional semantic evaluation compose a fail-closed decision.
+4. Deterministic policy, stateful chain analysis, and purpose-bound data flow compose the Agent decision; the general gateway also supports Phase 5 semantic evaluation after hard rules allow.
 5. Only `ALLOW` reaches a handler. `BLOCK` and `REQUIRE_APPROVAL` do not execute.
 6. The UI streams decisions, receipts, sources, citations, and the final answer without exposing secrets or chain-of-thought.
 
-The result is a working GPT-style research console, not a static simulation. It performs real local-model tool calling and hosted web search/fetch, while the Evidence tab preserves a deterministic attack demonstration and measured benchmark results.
+The result is a working GPT-style research console, not a static simulation. It performs real local-model tool calling against hosted web search/fetch integrations, while the Evidence tab preserves a deterministic attack demonstration and measured benchmark results. Provider errors fail closed with visible receipts, so a hosted fetch outage never becomes an ungoverned fallback.
 
 ## Phase 1–10 completion
 
@@ -48,7 +48,7 @@ The result is a working GPT-style research console, not a static simulation. It 
 | False Positive Rate | **0% — 0/16** |
 | Controlled poison actions blocked | **2** |
 | Attacker sink executions | **0** |
-| Live local-model tools | `web_search` and `web_fetch` both authorized |
+| Latest live local-model gate | `web_search` authorized; hosted `web_fetch` returned 404 and failed closed with `TOOL_PROVIDER_ERROR` |
 | Live grounded response | cited source and non-empty answer |
 
 See [VERIFICATION.md](logs/handoff/phase-10-release/VERIFICATION.md) for commands and [the Evidence screenshot](docs/assets/phase10/evidence-benchmark.png) for the rendered view.
@@ -156,7 +156,7 @@ IntentFence authoritative gateway
   ├─ deterministic policy
   ├─ state/action-chain analysis
   ├─ purpose-bound data flow
-  └─ semantic adapter after hard rules allow
+  └─ Agent path stays deterministic; /gateway/intercept may add semantics
         │ ALLOW only
         ▼
 Sandboxed tool runtime / hosted web search and fetch
@@ -169,6 +169,7 @@ See [PHASE10_ARCHITECTURE.md](docs/PHASE10_ARCHITECTURE.md) for boundaries and r
 ## API surface
 
 - `GET /health` — fixed service health response
+- `GET /agent/readiness` — secret-safe Ollama/model/web readiness
 - `POST /authorize` — typed deterministic/state authorization
 - `POST /gateway/intercept` — authoritative protected-tool interception
 - `POST /agent/chat/stream` — strict POST-based SSE agent stream

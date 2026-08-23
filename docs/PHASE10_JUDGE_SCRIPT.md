@@ -9,7 +9,7 @@ ollama serve  # skip if already running
 make dev
 ```
 
-Open `http://localhost:3000`. Keep `http://localhost:8000/docs` available in a second tab. Confirm the header says **Runtime API ONLINE**.
+Open `http://localhost:3000`. Keep `http://localhost:8000/docs` available in a second tab. Confirm the header says **Agent runtime CONFIGURED**; the live smoke is the separate credential/functionality proof.
 
 ## Five-minute presentation
 
@@ -19,7 +19,7 @@ Open `http://localhost:3000`. Keep `http://localhost:8000/docs` available in a s
 
 Point to **Local intelligence · authoritative execution** and the server-owned contract card.
 
-### 0:40–2:10 — real search and fetch
+### 0:40–2:10 — real search and protected fetch
 
 Submit:
 
@@ -30,7 +30,7 @@ Use web_search for current AI agent security news, then web_fetch one result, an
 While it runs, explain:
 
 - `qwen3:14b` is local on the M4.
-- Search and fetch are real hosted tools.
+- Search and fetch target the real hosted tools. If hosted fetch is available, it shows **ALLOW**; if the provider returns an error, it shows a fail-closed `TOOL_PROVIDER_ERROR` receipt and answers from cited search evidence.
 - Each proposal is separately authorized before the provider call.
 - Sources are untrusted data and cannot modify the Intent Contract.
 
@@ -40,7 +40,7 @@ Show the two green `ALLOW` cards, source link, and cited answer.
 
 Open **Revise objective**, turn **Web research** off, and apply. Point out `Contract v2` and the previous-intent reference. Click **Run controlled browse probe**.
 
-Say: “This is the same capability request after authority was removed. The model can still propose it, but the gateway returns `BLOCK`; `Executed: No` proves the provider was not called. The receipt records why without logging secrets.”
+Say: “This is a server-owned deterministic probe of the same capability after authority was removed. The gateway returns `BLOCK`; `Executed: No` proves the provider was not called. The receipt records why without logging secrets.”
 
 ### 3:05–4:15 — indirect prompt injection
 
@@ -58,7 +58,7 @@ Scroll to the benchmark cards:
 - 8/8 safe workflows completed
 - 0/16 benign actions falsely blocked
 
-Close with: “The deterministic suite is CI-safe, while a separate live gate proves the real Qwen search/fetch/citation path. The submission includes code, tests, screenshots, architecture, and repeatable commands; deployment was not required.”
+Close with: “The deterministic suite is CI-safe, while a separate live gate proves real Qwen tool calling, hosted search, citations, and fail-closed provider handling. The submission includes code, tests, screenshots, architecture, and repeatable commands; deployment was not required.”
 
 ## If live web is slow
 

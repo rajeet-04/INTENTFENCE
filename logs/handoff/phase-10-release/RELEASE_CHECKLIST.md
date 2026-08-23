@@ -3,7 +3,7 @@
 ## Product
 
 - [x] Real local model produces tool proposals and answers.
-- [x] Real hosted web search and fetch execute only after `ALLOW`.
+- [x] Real hosted web search/fetch are attempted only after `ALLOW`; current hosted fetch 404 fails closed with a receipt.
 - [x] Citations and sources render in the Agent view.
 - [x] Server owns sessions, intent IDs, contract versions, and revisions.
 - [x] Web-disabled identical probe is blocked and not executed.
@@ -25,7 +25,8 @@
 - [x] Four secret-safe screenshots captured and inspected.
 - [x] 20-scenario benchmark persisted for the rendered Evidence view.
 - [x] README, architecture, judge script, and walkthrough cover Phases 1–10.
-- [ ] Fresh full-suite counts and commit/tree IDs recorded after final commit.
+- [x] Fresh full-suite counts recorded: 392 backend and 28 dashboard tests.
+- [ ] Verified implementation commit/tree IDs recorded after final commit.
 - [ ] CI checks green on the release branch and merge candidate.
 - [ ] PR merged to `main` with exact tree proof.
 - [ ] `v0.10.0` tag points to verified `main`.

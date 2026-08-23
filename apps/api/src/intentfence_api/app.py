@@ -7,6 +7,7 @@ from intentfence_contracts import Decision
 
 from .agent.models import AgentChatRequest, ErrorEvent
 from .agent.orchestrator import AgentError, Phase10ChatOrchestrator
+from .agent.readiness import AgentReadiness, probe_agent_readiness
 from .agent.sessions import (
     AgentSessionStore,
     IntentRevisionRequired,
@@ -45,9 +46,11 @@ agent_web_provider = OllamaWebProvider(
     api_key=settings.ollama_api_key if settings.live_web_enabled else None,
     base_url=settings.ollama_web_base_url,
 )
+agent_gateway = IntentFenceGateway()
 agent_tool_executor = OllamaToolExecutor(
     runtime=tool_runtime,
     web_provider=agent_web_provider,
+    gateway=agent_gateway,
 )
 chat_orchestrator = Phase10ChatOrchestrator(
     client=agent_client,
@@ -73,7 +76,21 @@ app.add_middleware(
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "service": "intentfence-api"}
+    return {
+        "status": "ok",
+        "service": "intentfence-api",
+        "release": "phase10-agent-console-v1",
+    }
+
+
+@app.get("/agent/readiness")
+def agent_readiness() -> AgentReadiness:
+    return probe_agent_readiness(
+        base_url=settings.agent_ollama_base_url,
+        model=settings.agent_ollama_model,
+        live_web_enabled=settings.live_web_enabled,
+        web_api_key=settings.ollama_api_key,
+    )
 
 
 @app.get("/benchmarks/latest")

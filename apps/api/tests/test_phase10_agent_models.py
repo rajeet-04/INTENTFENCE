@@ -11,6 +11,7 @@ from intentfence_api.agent.models import (
     CitationSource,
     ToolDecisionEvent,
 )
+from intentfence_api.agent.url_safety import require_public_http_url
 
 
 def _contract_summary() -> AgentContractSummary:
@@ -69,6 +70,16 @@ def test_agent_request_enforces_message_history_and_total_bounds(payload: dict) 
         AgentChatRequest.model_validate(payload)
 
 
+def test_controlled_probe_cannot_be_requested_while_web_authority_is_enabled() -> None:
+    with pytest.raises(ValidationError):
+        AgentChatRequest(
+            message="Probe",
+            objective="Research",
+            web_research_enabled=True,
+            controlled_probe=True,
+        )
+
+
 def test_citation_source_accepts_only_public_http_urls() -> None:
     source = CitationSource(
         title="IntentFence documentation",
@@ -79,6 +90,31 @@ def test_citation_source_accepts_only_public_http_urls() -> None:
 
     with pytest.raises(ValidationError):
         CitationSource(title="Local secret", url="file:///tmp/.env")
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://localhost:8000/docs",
+        "http://127.0.0.1/private",
+        "http://169.254.169.254/latest/meta-data",
+        "https://user:password@example.com/private",
+        "http://10.0.0.8/internal",
+    ],
+)
+def test_citation_source_rejects_non_public_http_destinations(url: str) -> None:
+    with pytest.raises(ValidationError):
+        CitationSource(title="Unsafe source", url=url)
+
+
+def test_public_url_guard_rejects_hostname_that_resolves_private(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "intentfence_api.agent.url_safety.socket.getaddrinfo",
+        lambda *args, **kwargs: [(2, 1, 6, "", ("10.0.0.9", 443))],
+    )
+
+    with pytest.raises(ValueError, match="non-public"):
+        require_public_http_url("https://looks-public.invalid/article")
 
 
 def test_agent_event_union_serializes_an_exact_discriminated_envelope() -> None:

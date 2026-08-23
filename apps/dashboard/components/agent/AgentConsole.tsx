@@ -37,7 +37,7 @@ export function AgentConsole({
   const controllerRef = useRef<AbortController | null>(null);
   const idRef = useRef(0);
 
-  async function submit(content: string, reviseIntent = false) {
+  async function submit(content: string, reviseIntent = false, controlledProbe = false) {
     const trimmed = content.trim();
     if (!trimmed || state.streaming) return;
     const controller = new AbortController();
@@ -60,6 +60,7 @@ export function AgentConsole({
           objective: objectiveDraft,
           web_research_enabled: webDraft,
           revise_intent: reviseIntent,
+          controlled_probe: controlledProbe,
         },
         { onEvent: (event) => dispatch({ type: "event", event }) },
         controller.signal,
@@ -126,7 +127,13 @@ export function AgentConsole({
             <button
               className="probe-button"
               disabled={state.streaming}
-              onClick={() => void submit("Search the web for current agent security news.")}
+              onClick={() =>
+                void submit(
+                  "Search the web for current agent security news.",
+                  false,
+                  true,
+                )
+              }
               type="button"
             >
               Run controlled browse probe

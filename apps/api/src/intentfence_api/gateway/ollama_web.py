@@ -1,4 +1,8 @@
+import json
+
 import httpx
+
+_MAX_PROVIDER_RESPONSE_BYTES = 1_000_000
 
 
 class OllamaWebProvider:
@@ -14,22 +18,30 @@ class OllamaWebProvider:
         self._client = httpx.Client(transport=transport, timeout=20.0)
 
     def search(self, query: str, *, max_results: int = 5) -> dict[str, object]:
-        response = self._client.post(
-            f"{self.base_url}/api/web_search",
-            headers=self._authorization_headers(),
-            json={"query": query, "max_results": max_results},
+        return self._post_json(
+            "/api/web_search", {"query": query, "max_results": max_results}
         )
-        response.raise_for_status()
-        return response.json()
 
     def fetch(self, url: str) -> dict[str, object]:
-        response = self._client.post(
-            f"{self.base_url}/api/web_fetch",
+        return self._post_json("/api/web_fetch", {"url": url})
+
+    def _post_json(self, path: str, payload: dict[str, object]) -> dict[str, object]:
+        body = bytearray()
+        with self._client.stream(
+            "POST",
+            f"{self.base_url}{path}",
             headers=self._authorization_headers(),
-            json={"url": url},
-        )
-        response.raise_for_status()
-        return response.json()
+            json=payload,
+        ) as response:
+            response.raise_for_status()
+            for chunk in response.iter_bytes(chunk_size=64 * 1024):
+                if len(chunk) > _MAX_PROVIDER_RESPONSE_BYTES - len(body):
+                    raise ValueError("web provider response exceeded the safe size limit")
+                body.extend(chunk)
+        value = json.loads(body)
+        if not isinstance(value, dict):
+            raise ValueError("web provider response must be an object")
+        return value
 
     def _authorization_headers(self) -> dict[str, str]:
         key = self.api_key.strip() if self.api_key else ""

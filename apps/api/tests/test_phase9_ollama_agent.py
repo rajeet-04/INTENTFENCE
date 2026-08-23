@@ -143,6 +143,7 @@ def test_web_tools_explain_required_arguments_to_the_local_model() -> None:
     assert definitions["web_search"]["parameters"]["required"] == ["query"]
     assert definitions["web_fetch"]["parameters"]["required"] == ["url"]
     assert "search results" in definitions["web_fetch"]["description"].lower()
+    assert "browse_web" not in definitions
 
 
 def test_search_then_poisoned_secret_read_is_blocked(tmp_path) -> None:

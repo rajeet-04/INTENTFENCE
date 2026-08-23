@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from typing import Protocol
 from uuid import uuid4
 
+import httpx
 from intentfence_contracts import IntentContract, SourceContext
 
 from intentfence_api.gateway.fail_closed import build_fail_closed_execution
@@ -15,6 +16,13 @@ from intentfence_api.gateway.tools import CORE_TOOL_NAMES, normalize_tool_reques
 
 from .models import CitationSource
 from .sources import normalize_fetch_source, normalize_search_sources
+from .url_safety import require_public_http_url
+
+_MAX_TOOL_PAYLOAD_CHARS = 128_000
+
+
+class ToolProviderFailure(RuntimeError):
+    pass
 
 
 class OllamaWebProviderProtocol(Protocol):
@@ -50,14 +58,32 @@ class OllamaToolExecutor:
         self,
         *,
         external_name: str,
-        arguments: dict,
+        arguments: object,
         intent_contract: IntentContract,
         source_context: SourceContext,
     ) -> ToolExecutionResult:
-        canonical_name = canonical_tool_name(external_name)
         request_id = f"ollama-{uuid4().hex}"
-        data_refs = _data_refs(arguments)
         sources: tuple[CitationSource, ...] = ()
+
+        if not isinstance(arguments, dict):
+            execution = build_fail_closed_execution(
+                request_id=request_id,
+                session_id=intent_contract.session_id,
+                intent_contract=intent_contract,
+                tool=external_name,
+                data_refs=[],
+                rule_id="TOOL_ARGUMENT_INVALID",
+                reason="The model supplied malformed protected-tool arguments.",
+                scenario_id=self.scenario_id,
+            )
+            return ToolExecutionResult(
+                execution=execution,
+                sources=(),
+                next_source_context=source_context,
+            )
+
+        canonical_name = canonical_tool_name(external_name)
+        data_refs = _data_refs(arguments)
 
         if canonical_name not in CORE_TOOL_NAMES:
             execution = build_fail_closed_execution(
@@ -92,12 +118,35 @@ class OllamaToolExecutor:
                 )
                 return result
 
-            execution = self.gateway.intercept_authoritative(
-                normalized,
-                intent_contract,
-                handler=handler,
-                scenario_id=self.scenario_id,
-            )
+            try:
+                execution = self.gateway.intercept_authoritative(
+                    normalized,
+                    intent_contract,
+                    handler=handler,
+                    scenario_id=self.scenario_id,
+                )
+            except ToolProviderFailure:
+                execution = build_fail_closed_execution(
+                    request_id=request_id,
+                    session_id=intent_contract.session_id,
+                    intent_contract=intent_contract,
+                    tool=external_name,
+                    data_refs=data_refs,
+                    rule_id="TOOL_PROVIDER_ERROR",
+                    reason="The protected tool provider failed safely; no side effect completed.",
+                    scenario_id=self.scenario_id,
+                )
+            except ValueError:
+                execution = build_fail_closed_execution(
+                    request_id=request_id,
+                    session_id=intent_contract.session_id,
+                    intent_contract=intent_contract,
+                    tool=external_name,
+                    data_refs=data_refs,
+                    rule_id="TOOL_ARGUMENT_INVALID",
+                    reason="The protected tool arguments failed validation.",
+                    scenario_id=self.scenario_id,
+                )
 
         next_context = source_context
         if execution.executed and external_name in {"web_search", "web_fetch"}:
@@ -115,7 +164,7 @@ class OllamaToolExecutor:
         for key in ("content_ref", "data_ref"):
             reference = metadata.get(key)
             if isinstance(reference, str):
-                payload = self.runtime.environment.payload(reference)
+                payload = self.runtime.environment.take_payload(reference)
                 break
         return json.dumps(
             {
@@ -149,11 +198,15 @@ class OllamaToolExecutor:
         if not isinstance(raw_max_results, int):
             raise ValueError("web_search max_results must be an integer")
         max_results = max(1, min(raw_max_results, 10))
-        payload = self.web_provider.search(query.strip(), max_results=max_results)
+        try:
+            payload = self.web_provider.search(query.strip(), max_results=max_results)
+        except (httpx.HTTPError, RuntimeError, ValueError) as exc:
+            raise ToolProviderFailure("web search provider failed") from exc
         if not isinstance(payload, dict):
-            raise ValueError("web_search provider response must be an object")
+            raise ToolProviderFailure("web search provider returned invalid data")
+        serialized = _bounded_payload_json(payload)
         content_ref = self.runtime.environment.store_payload(
-            json.dumps(payload, sort_keys=True, default=str)
+            serialized
         )
         results = payload.get("results")
         sources = normalize_search_sources(results)
@@ -171,12 +224,16 @@ class OllamaToolExecutor:
         url = arguments.get("url")
         if not isinstance(url, str) or not url.strip():
             raise ValueError("web_fetch requires a URL")
-        normalized_url = url.strip()
-        payload = self.web_provider.fetch(normalized_url)
+        normalized_url = require_public_http_url(url)
+        try:
+            payload = self.web_provider.fetch(normalized_url)
+        except (httpx.HTTPError, RuntimeError, ValueError) as exc:
+            raise ToolProviderFailure("web fetch provider failed") from exc
         if not isinstance(payload, dict):
-            raise ValueError("web_fetch provider response must be an object")
+            raise ToolProviderFailure("web fetch provider returned invalid data")
+        serialized = _bounded_payload_json(payload)
         content_ref = self.runtime.environment.store_payload(
-            json.dumps(payload, sort_keys=True, default=str)
+            serialized
         )
         return (
             {
@@ -194,3 +251,32 @@ def _data_refs(arguments: dict) -> list[str]:
         for key, value in arguments.items()
         if key.endswith("_ref") and isinstance(value, str) and value
     ]
+
+
+def _bounded_payload_json(payload: dict[str, object]) -> str:
+    bounded = _bounded_value(payload)
+    serialized = json.dumps(bounded, sort_keys=True, default=str)
+    if len(serialized) <= _MAX_TOOL_PAYLOAD_CHARS:
+        return serialized
+    return json.dumps(
+        {
+            "content": serialized[: _MAX_TOOL_PAYLOAD_CHARS - 100],
+            "truncated": True,
+        },
+        sort_keys=True,
+    )
+
+
+def _bounded_value(value: object) -> object:
+    if isinstance(value, str):
+        return value[:16_000]
+    if isinstance(value, list):
+        return [_bounded_value(item) for item in value[:10]]
+    if isinstance(value, dict):
+        return {
+            str(key)[:200]: _bounded_value(item)
+            for key, item in list(value.items())[:32]
+        }
+    if isinstance(value, (int, float, bool)) or value is None:
+        return value
+    return str(value)[:2_000]

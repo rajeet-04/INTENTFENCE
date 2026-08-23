@@ -13,7 +13,6 @@ export function AgentHeader() {
       </div>
       <div className="agent-runtime">
         <HealthCard />
-        <span className="model-chip">qwen3:14b · local</span>
       </div>
     </header>
   );

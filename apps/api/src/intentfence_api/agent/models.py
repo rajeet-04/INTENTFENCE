@@ -2,7 +2,9 @@ from enum import StrEnum
 from typing import Annotated, Literal
 
 from intentfence_contracts import DecisionType
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator, model_validator
+
+from .url_safety import require_public_http_url
 
 
 class StrictModel(BaseModel):
@@ -26,6 +28,7 @@ class AgentChatRequest(StrictModel):
     objective: str = Field(min_length=1, max_length=8000)
     web_research_enabled: bool = True
     revise_intent: bool = False
+    controlled_probe: bool = False
 
     @model_validator(mode="after")
     def bounded_request(self) -> "AgentChatRequest":
@@ -33,6 +36,8 @@ class AgentChatRequest(StrictModel):
         total += sum(len(item.content) for item in self.history)
         if total > 64000:
             raise ValueError("agent chat request exceeds 64000 characters")
+        if self.controlled_probe and self.web_research_enabled:
+            raise ValueError("controlled browse probe requires web research to be disabled")
         return self
 
 
@@ -49,6 +54,13 @@ class CitationSource(StrictModel):
     title: str = Field(min_length=1, max_length=240)
     url: HttpUrl
     snippet: str | None = Field(default=None, max_length=500)
+
+    @field_validator("url", mode="before")
+    @classmethod
+    def public_url_only(cls, value: object) -> object:
+        if isinstance(value, str):
+            return require_public_http_url(value)
+        return value
 
 
 class AgentEventType(StrEnum):

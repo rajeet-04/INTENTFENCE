@@ -4,21 +4,21 @@ This document explains the Phase 10 product demo and maps each visible result to
 
 ## The 60-second explanation
 
-> IntentFence is a runtime authorization layer for AI agents. A local Qwen model can reason, search, fetch, and answer, but it cannot execute a protected tool directly. The server owns a versioned Intent Contract derived from the user's objective. Every model-proposed tool call crosses deterministic policy, stateful action-chain, purpose-bound data-flow, and optional semantic checks. Only `ALLOW` reaches the handler. In the live console we show real search and fetch with citations. Then we remove web authority, repeat the browse request, and show that the exact tool proposal is blocked and never executes. Finally, the Evidence tab shows the same property against an indirect prompt-injection chain and a measured 20-scenario benchmark.
+> IntentFence is a runtime authorization layer for AI agents. A local Qwen model can reason, search, fetch, and answer, but it cannot execute a protected tool directly. The server owns a versioned Intent Contract derived from the user's objective. Every Agent tool call crosses deterministic policy, stateful action-chain, and purpose-bound data-flow checks. Phase 5 semantics remain available on the general gateway after hard rules allow. Only `ALLOW` reaches a handler. In the live console we show real hosted search, protected fetch handling, and citations. Then we remove web authority and run a server-owned deterministic probe showing that the same capability is blocked and never executes. Finally, the Evidence tab shows the same property against an indirect prompt-injection chain and a measured 20-scenario benchmark.
 
 ## Demo A — real local-model research
 
-1. Open `http://localhost:3000` and confirm **Runtime API — ONLINE** and `qwen3:14b · local`.
+1. Open `http://localhost:3000` and confirm **Agent runtime — CONFIGURED** and `qwen3:14b · local`. `make phase10-live-smoke` is the proof that the configured web credential works.
 2. Submit: `Use web_search for current AI agent security news, then web_fetch one result, and answer with cited facts.`
 3. Qwen proposes `web_search`; it does not call the provider itself.
 4. The orchestrator normalizes the proposal and sends it through `IntentFenceGateway.intercept_authoritative(...)`.
 5. The active contract permits public-web research, so the UI streams `Web Search — ALLOW`.
 6. Hosted search results are stored as untrusted data references and normalized into source cards.
-7. Qwen selects a result and proposes `web_fetch`; it crosses the same gateway and displays `Web Fetch — ALLOW`.
+7. Qwen selects a result and proposes `web_fetch`; it crosses the same gateway. It displays **ALLOW** when the hosted fetch succeeds, or a fail-closed `TOOL_PROVIDER_ERROR` receipt if the provider is unavailable.
 8. Retrieved content stays `EXTERNAL_WEB`; it may inform reasoning but cannot add authority.
 9. Qwen returns a grounded answer. The browser renders the answer and its source separately from tool decisions.
 
-What is real here: the model, tool selection, hosted search, hosted fetch, SSE stream, source, answer, and gateway decisions. No browser-supplied contract or trusted label is accepted.
+What is real here: the model, tool selection, hosted search/fetch calls, SSE stream, source, answer, and gateway decisions. No browser-supplied contract or trusted label is accepted.
 
 ## Demo B — server-owned revision and identical blocked probe
 
@@ -26,11 +26,11 @@ What is real here: the model, tool selection, hosted search, hosted fetch, SSE s
 2. Turn **Web research** off and apply the revision.
 3. The server preserves the session, issues a new intent ID, increments `Contract v1` to `v2`, and links the previous intent.
 4. Click **Run controlled browse probe**.
-5. Qwen proposes a web tool, but the active v2 contract no longer grants it.
+5. The server emits a fixed, side-effect-free `web_search` authorization probe; the active v2 contract no longer grants that capability.
 6. The UI displays `BLOCK`, `Executed: No`, `FORBIDDEN_TOOL`, latency, and a sanitized receipt identifier.
 7. The web provider is never called for the denied proposal.
 
-The model does not revise its own authority. The browser sends a revision request; the server validates and owns the replacement contract.
+The model does not revise its own authority or control this proof. The browser requests a revision and then a fixed probe; the server validates both and owns the replacement contract.
 
 ## Demo C — indirect prompt injection
 
@@ -115,4 +115,4 @@ make phase10-smoke
 make phase10-live-smoke
 ```
 
-See [PHASE10_JUDGE_SCRIPT.md](PHASE10_JUDGE_SCRIPT.md) for the spoken sequence and [BROWSER_WALKTHROUGH.md](BROWSER_WALKTHROUGH.md) for automated browser observations.
+See [PHASE10_JUDGE_SCRIPT.md](PHASE10_JUDGE_SCRIPT.md) for the spoken sequence and [BROWSER_WALKTHROUGH.md](../logs/handoff/phase-10-release/BROWSER_WALKTHROUGH.md) for automated browser observations.

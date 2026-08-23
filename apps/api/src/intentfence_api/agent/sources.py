@@ -4,6 +4,7 @@ from collections.abc import Iterable
 from pydantic import ValidationError
 
 from .models import CitationSource
+from .url_safety import require_public_http_url
 
 _CONTROL_CHARACTERS = re.compile(r"[\x00-\x1f\x7f]")
 
@@ -35,12 +36,13 @@ def normalize_search_sources(
         if not title or not url or url in seen_urls:
             continue
         try:
+            url = require_public_http_url(url)
             source = CitationSource(
                 title=title,
                 url=url,
                 snippet=snippet or None,
             )
-        except ValidationError:
+        except (ValidationError, ValueError):
             continue
         normalized_url = str(source.url)
         if normalized_url in seen_urls:
@@ -61,8 +63,9 @@ def normalize_fetch_source(url: str, payload: object) -> tuple[CitationSource, .
         limit=500,
     )
     try:
+        url = require_public_http_url(url)
         return (
             CitationSource(title=title, url=url, snippet=snippet or None),
         )
-    except ValidationError:
+    except (ValidationError, ValueError):
         return ()

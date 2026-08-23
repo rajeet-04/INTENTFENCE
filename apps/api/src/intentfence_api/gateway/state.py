@@ -16,7 +16,10 @@ _NETWORK_TOOLS = {"http_request", "send_message"}
 class GatewayStateStore:
     """Gateway-owned SecurityContext store keyed by active session and intent."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, max_contexts: int = 512) -> None:
+        if max_contexts < 1:
+            raise ValueError("max_contexts must be positive")
+        self.max_contexts = max_contexts
         self._contexts: dict[tuple[str, str], SecurityContext] = {}
 
     @staticmethod
@@ -32,7 +35,13 @@ class GatewayStateStore:
         key = self._key(contract.session_id, contract.intent_id)
         existing = self._contexts.get(key)
         if existing is not None:
+            self._contexts.pop(key)
+            self._contexts[key] = existing
             return existing
+
+        while len(self._contexts) >= self.max_contexts:
+            oldest = next(iter(self._contexts))
+            self._contexts.pop(oldest)
 
         context = SecurityContext(
             session_id=contract.session_id,

@@ -202,6 +202,95 @@ def test_orchestrator_emits_ordered_search_fetch_answer_events(tmp_path) -> None
     assert events[-1].tool_count == 2
 
 
+def test_orchestrator_yields_answer_delta_before_model_stream_finishes(tmp_path) -> None:
+    class CheckpointClient:
+        after_first_resume = False
+
+        def iter_chat(self, messages: list[dict], tools: list[dict]):
+            yield {"message": {"role": "assistant", "content": "First "}, "done": False}
+            self.after_first_resume = True
+            yield {"message": {"role": "assistant", "content": "second."}, "done": True}
+
+    orchestrator, store, _ = build_orchestrator(tmp_path, [])
+    client = CheckpointClient()
+    orchestrator.client = client
+    request = research_request()
+    session = store.resolve(
+        session_id=None,
+        objective=request.objective,
+        web_research_enabled=True,
+        revise_intent=False,
+    )
+    stream = orchestrator.stream(request=request, session=session)
+
+    assert next(stream).event == AgentEventType.SESSION
+    assert next(stream).event == AgentEventType.MODEL_STATUS
+    first_delta = next(stream)
+
+    assert first_delta.event == AgentEventType.ASSISTANT_DELTA
+    assert first_delta.delta == "First "
+    assert client.after_first_resume is False
+
+
+def test_contract_revision_is_acknowledged_by_server_without_model_turn(tmp_path) -> None:
+    orchestrator, store, _ = build_orchestrator(tmp_path, [])
+    original = store.resolve(
+        session_id=None,
+        objective="Research current agent security news",
+        web_research_enabled=True,
+        revise_intent=False,
+    )
+    request = AgentChatRequest(
+        session_id=original.session_id,
+        message="Apply this revised Intent Contract.",
+        objective="Answer without web research",
+        web_research_enabled=False,
+        revise_intent=True,
+    )
+    revised = store.resolve(
+        session_id=original.session_id,
+        objective=request.objective,
+        web_research_enabled=False,
+        revise_intent=True,
+    )
+
+    events = list(orchestrator.stream(request=request, session=revised))
+
+    assert orchestrator.client.requests == []
+    assert [event.event for event in events] == [
+        AgentEventType.SESSION,
+        AgentEventType.ASSISTANT_DELTA,
+        AgentEventType.ASSISTANT_DONE,
+    ]
+    assert "revised" in events[1].delta.lower()
+
+
+def test_controlled_browse_probe_is_server_owned_and_never_calls_model_or_web(
+    tmp_path,
+) -> None:
+    orchestrator, store, _ = build_orchestrator(tmp_path, [])
+    request = AgentChatRequest(
+        message="Search the web for current agent security news.",
+        objective="Answer without web research",
+        web_research_enabled=False,
+        controlled_probe=True,
+    )
+    session = store.resolve(
+        session_id=None,
+        objective=request.objective,
+        web_research_enabled=False,
+        revise_intent=False,
+    )
+
+    events = list(orchestrator.stream(request=request, session=session))
+    decision = next(event for event in events if event.event == AgentEventType.TOOL_DECISION)
+
+    assert orchestrator.client.requests == []
+    assert decision.decision is DecisionType.BLOCK
+    assert decision.executed is False
+    assert any(event.event == AgentEventType.ASSISTANT_DONE for event in events)
+
+
 def test_poisoned_web_content_cannot_expose_or_execute_protected_actions(
     tmp_path,
 ) -> None:
@@ -273,6 +362,117 @@ def test_orchestrator_maps_ollama_connection_failure_to_stable_safe_error(
     assert captured.value.code == "OLLAMA_UNAVAILABLE"
     assert captured.value.recoverable is True
     assert "connection details" not in captured.value.message
+
+
+def test_orchestrator_does_not_misreport_web_fetch_404_as_missing_model(
+    tmp_path,
+) -> None:
+    class MissingPageWebProvider(ScriptedWebProvider):
+        def fetch(self, url: str) -> dict[str, object]:
+            request = httpx.Request("POST", "https://ollama.com/api/web_fetch")
+            response = httpx.Response(404, request=request)
+            raise httpx.HTTPStatusError("target unavailable", request=request, response=response)
+
+    orchestrator, store, _ = build_orchestrator(
+        tmp_path,
+        [
+            stream_tool("web_fetch", {"url": "https://sources.example/missing"}),
+            stream_answer("The selected source was unavailable, so I stopped safely."),
+        ],
+    )
+    orchestrator.executor.web_provider = MissingPageWebProvider()
+    request = research_request()
+    session = store.resolve(
+        session_id=None,
+        objective=request.objective,
+        web_research_enabled=True,
+        revise_intent=False,
+    )
+
+    events = list(orchestrator.stream(request=request, session=session))
+    decisions = [event for event in events if event.event == AgentEventType.TOOL_DECISION]
+
+    assert len(decisions) == 1
+    assert decisions[0].decision is DecisionType.BLOCK
+    assert decisions[0].executed is False
+    assert decisions[0].matched_rules == ["TOOL_PROVIDER_ERROR"]
+    assert any(event.event == AgentEventType.ASSISTANT_DONE for event in events)
+
+
+@pytest.mark.parametrize(
+    ("tool", "arguments"),
+    [
+        ("web_search", {}),
+        ("web_search", {"query": "news", "max_results": "many"}),
+        ("web_fetch", {}),
+        ("browse_web", {}),
+    ],
+)
+def test_malformed_model_tool_arguments_get_block_receipt_and_recovery(
+    tmp_path, tool: str, arguments: dict
+) -> None:
+    orchestrator, store, _ = build_orchestrator(
+        tmp_path,
+        [stream_tool(tool, arguments), stream_answer("The malformed action stopped safely.")],
+    )
+    request = research_request()
+    session = store.resolve(
+        session_id=None,
+        objective=request.objective,
+        web_research_enabled=True,
+        revise_intent=False,
+    )
+
+    events = list(orchestrator.stream(request=request, session=session))
+    proposed_index = next(
+        index for index, event in enumerate(events) if event.event == AgentEventType.TOOL_PROPOSED
+    )
+    decision_index = next(
+        index for index, event in enumerate(events) if event.event == AgentEventType.TOOL_DECISION
+    )
+    decision = events[decision_index]
+
+    assert decision_index == proposed_index + 1
+    assert decision.decision is DecisionType.BLOCK
+    assert decision.executed is False
+    assert decision.receipt_id
+    assert decision.matched_rules == ["TOOL_ARGUMENT_INVALID"]
+    assert any(event.event == AgentEventType.ASSISTANT_DONE for event in events)
+
+
+def test_non_object_model_tool_arguments_get_block_receipt_and_recovery(tmp_path) -> None:
+    malformed_turn = [
+        {
+            "message": {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {"function": {"name": "web_search", "arguments": "not-an-object"}}
+                ],
+            },
+            "done": True,
+        }
+    ]
+    orchestrator, store, _ = build_orchestrator(
+        tmp_path,
+        [malformed_turn, stream_answer("The malformed action stopped safely.")],
+    )
+    request = research_request()
+    session = store.resolve(
+        session_id=None,
+        objective=request.objective,
+        web_research_enabled=True,
+        revise_intent=False,
+    )
+
+    events = list(orchestrator.stream(request=request, session=session))
+    decision = next(event for event in events if event.event == AgentEventType.TOOL_DECISION)
+
+    assert decision.decision is DecisionType.BLOCK
+    assert decision.executed is False
+    assert decision.receipt_id
+    assert decision.matched_rules == ["TOOL_ARGUMENT_INVALID"]
+    assert any(event.event == AgentEventType.ASSISTANT_DONE for event in events)
 
 
 def test_orchestrator_stops_with_stable_step_limit_error(tmp_path) -> None:

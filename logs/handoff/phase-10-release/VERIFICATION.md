@@ -7,9 +7,11 @@ Branch: `phase/10-release`
 
 | Gate | Result |
 | --- | --- |
-| Focused timeout/startup/model-tool regression tests | 20 passed |
-| Ruff on changed startup/model files | passed |
-| Native `make dev` preflight | READY; API, dashboard, Ollama, model, and key presence detected |
+| Focused Phase 10 safety/readiness/orchestrator tests | 40 passed |
+| Full backend suite | 392 passed |
+| Dashboard suite | 28 passed |
+| Ruff, ESLint, TypeScript, and production build | passed |
+| Native `make dev` preflight | CONFIGURED; API, dashboard, Ollama, model, and key presence detected |
 | Live Phase 10 smoke | PASS |
 | Browser product walkthrough | PASS; no final console errors |
 | Stored benchmark | 20 scenarios, 32 actions |
@@ -18,9 +20,9 @@ Branch: `phase/10-release`
 
 - model: local `qwen3:14b`
 - `web_search`: allowed
-- `web_fetch`: allowed
+- `web_fetch`: proposed; hosted endpoint returned 404 and failed closed with `TOOL_PROVIDER_ERROR`
 - source count: 1
-- answer characters: 1,353
+- answer characters: 288
 - controlled blocked action count: 2
 - attacker sink count: 0
 - hotel protected exfiltration sink count: 0
@@ -37,12 +39,15 @@ Branch: `phase/10-release`
 ```text
 .venv/bin/python -m pytest -q <focused Phase 9/10 tests>     exit 0
 .venv/bin/python -m ruff check <changed Python files>        exit 0
-make dev                                                     READY
+make phase10-smoke                                           exit 0 / PASS
+make verify BUN=/Users/rajeet/.bun/bin/bun                   392 + 28 passed
+make dev                                                     CONFIGURED
 make phase10-live-smoke                                      exit 0 / PASS
 .venv/bin/python -m intentfence_analytics.cli \
   benchmarks/scenarios intentfence.db \
   --run-id phase10-judge-evidence                            exit 0
 agent-browser visible-control walkthrough                    PASS
+curl http://localhost:8000/agent/readiness                   configured
 ```
 
 ## Final release identifiers

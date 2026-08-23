@@ -61,6 +61,7 @@ export type AgentChatRequest = {
   objective: string;
   web_research_enabled: boolean;
   revise_intent: boolean;
+  controlled_probe?: boolean;
 };
 
 export class AgentApiError extends Error {

@@ -1626,13 +1626,15 @@ code,
   content: "";
 }
 
-.health-card strong[data-state="online"] { color: #5cffad; }
-.health-card strong[data-state="online"]::before {
+.health-card strong[data-state="configured"] { color: #5cffad; }
+.health-card strong[data-state="configured"]::before {
   background: #5cffad;
   box-shadow: 0 0 12px rgba(92, 255, 173, 0.8);
 }
 .health-card strong[data-state="offline"] { color: #ff6b68; }
 .health-card strong[data-state="offline"]::before { background: #ff6b68; }
+.health-card strong[data-state="degraded"] { color: #d97706; }
+.health-card strong[data-state="degraded"]::before { background: #d97706; }
 
 .hero-copy {
   max-width: 930px;
