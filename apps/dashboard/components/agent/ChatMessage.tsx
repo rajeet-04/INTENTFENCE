@@ -10,7 +10,14 @@ export function ChatMessage({ message }: { message: ConversationMessage }) {
         {message.role === "assistant" ? "IF" : "You"}
       </div>
       <div className="message-body">
-        <p className="message-role">{message.role === "assistant" ? "IntentFence" : "You"}</p>
+        <div className="message-heading">
+          <p className="message-role">{message.role === "assistant" ? "IntentFence" : "You"}</p>
+          {message.role === "assistant" && message.provider && message.routeReason ? (
+            <span className="provider-badge">
+              {capitalize(message.provider)} · {message.routeReason}
+            </span>
+          ) : null}
+        </div>
         {message.activities.length ? (
           <div className="tool-activity-list" aria-label="IntentFence activity">
             {message.activities.map((activity) => (
@@ -26,4 +33,8 @@ export function ChatMessage({ message }: { message: ConversationMessage }) {
       </div>
     </article>
   );
+}
+
+function capitalize(value: string) {
+  return value[0].toUpperCase() + value.slice(1);
 }

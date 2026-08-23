@@ -722,6 +722,54 @@ button {
   clip: rect(0 0 0 0);
 }
 
+.reasoning-selector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: -8px 18px 14px;
+  padding: 0;
+  border: 0;
+}
+
+.reasoning-selector legend {
+  margin-right: 5px;
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 800;
+}
+
+.reasoning-selector button,
+.provider-badge {
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: white;
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 800;
+}
+
+.reasoning-selector button {
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+.reasoning-selector button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, white);
+  color: var(--accent);
+}
+
+.message-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.provider-badge {
+  padding: 3px 7px;
+  color: var(--accent);
+}
+
 .evidence-intro {
   width: min(1240px, calc(100% - 40px));
   margin: 0 auto;

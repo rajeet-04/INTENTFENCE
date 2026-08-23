@@ -127,6 +127,70 @@ test("recoverable stream errors retain the failed prompt for retry", () => {
   expect(state.messages[1].status).toBe("error");
 });
 
+test("assistant reset clears partial text but preserves receipts and sources", () => {
+  let state = agentReducer(initialAgentConversationState, {
+    type: "submit",
+    userId: "user-1",
+    assistantId: "assistant-1",
+    content: "Research safely",
+  });
+  state = agentReducer(state, {
+    type: "event",
+    event: {
+      event: "tool_proposed",
+      sequence: 1,
+      tool: "web_search",
+      argument_summary: { query_present: true },
+    },
+  });
+  state = agentReducer(state, {
+    type: "event",
+    event: {
+      event: "tool_decision",
+      sequence: 2,
+      tool: "web_search",
+      decision: "ALLOW",
+      executed: true,
+      reason: "Authorized.",
+      matched_rules: [],
+      receipt_id: "receipt-1",
+      latency_ms: 1,
+    },
+  });
+  state = agentReducer(state, {
+    type: "event",
+    event: {
+      event: "source",
+      sequence: 3,
+      source: { title: "Source", url: "https://example.com", snippet: null },
+    },
+  });
+  state = agentReducer(state, {
+    type: "event",
+    event: { event: "assistant_delta", sequence: 4, delta: "Partial local text" },
+  });
+  state = agentReducer(state, {
+    type: "event",
+    event: { event: "assistant_reset", sequence: 5, reason: "local_failure" },
+  });
+  state = agentReducer(state, {
+    type: "event",
+    event: {
+      event: "model_status",
+      sequence: 6,
+      status: "answering",
+      provider: "cloud",
+      route_reason: "fallback",
+    },
+  });
+
+  expect(state.messages[1].content).toBe("");
+  expect(state.messages[1].activities).toHaveLength(1);
+  expect(state.messages[1].sources).toHaveLength(1);
+  expect(state.messages[1].provider).toBe("cloud");
+  expect(state.messages[1].routeReason).toBe("fallback");
+});
+
 test("reset clears all browser-owned conversation state", () => {
   const submitted = agentReducer(initialAgentConversationState, {
     type: "submit",

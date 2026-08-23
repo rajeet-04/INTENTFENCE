@@ -9,11 +9,14 @@ type HealthState = "checking" | "configured" | "degraded" | "offline";
 type Readiness = {
   status: "configured" | "degraded";
   model: string;
+  cloud_model: string;
+  cloud_configured: boolean;
 };
 
 export function HealthCard() {
   const [state, setState] = useState<HealthState>("checking");
   const [model, setModel] = useState("local model");
+  const [cloudModel, setCloudModel] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -25,6 +28,7 @@ export function HealthCard() {
         }
         const readiness = (await response.json()) as Readiness;
         setModel(readiness.model);
+        setCloudModel(readiness.cloud_configured ? readiness.cloud_model : null);
         setState(readiness.status);
       })
       .catch((error: unknown) => {
@@ -42,6 +46,7 @@ export function HealthCard() {
       <span>Agent runtime</span>
       <strong data-state={state}>{state}</strong>
       <small className="model-chip">{model} · local</small>
+      {cloudModel ? <small className="model-chip">{cloudModel} · fallback configured</small> : null}
     </section>
   );
 }

@@ -23,6 +23,8 @@ export type ConversationMessage = {
   status: "complete" | "streaming" | "error";
   sources: CitationSource[];
   activities: ToolActivity[];
+  provider: "local" | "cloud" | null;
+  routeReason: "primary" | "fallback" | "escalation" | "explicit" | null;
 };
 
 export type AgentConversationState = {
@@ -98,7 +100,14 @@ function reduceEvent(
     case "session":
       return { ...state, contract: event.contract };
     case "model_status":
-      return { ...state, modelStatus: event.status };
+      return {
+        ...updateAssistant(state, (assistant) => ({
+          ...assistant,
+          provider: event.provider,
+          routeReason: event.route_reason,
+        })),
+        modelStatus: event.status,
+      };
     case "tool_proposed":
       return updateAssistant(state, (assistant) => ({
         ...assistant,
@@ -141,6 +150,11 @@ function reduceEvent(
       return updateAssistant(state, (assistant) => ({
         ...assistant,
         content: assistant.content + event.delta,
+      }));
+    case "assistant_reset":
+      return updateAssistant(state, (assistant) => ({
+        ...assistant,
+        content: "",
       }));
     case "assistant_done":
       return {
@@ -201,5 +215,14 @@ function message(
   content: string,
   status: ConversationMessage["status"],
 ): ConversationMessage {
-  return { id, role, content, status, sources: [], activities: [] };
+  return {
+    id,
+    role,
+    content,
+    status,
+    sources: [],
+    activities: [],
+    provider: null,
+    routeReason: null,
+  };
 }

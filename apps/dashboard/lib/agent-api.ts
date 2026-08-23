@@ -18,11 +18,15 @@ export type CitationSource = {
 
 type EventBase = { sequence: number };
 
+export type ReasoningMode = "auto" | "local" | "cloud";
+
 export type AgentStreamEvent =
   | (EventBase & { event: "session"; contract: AgentContractSummary })
   | (EventBase & {
       event: "model_status";
       status: "thinking" | "searching" | "reading" | "answering";
+      provider: "local" | "cloud";
+      route_reason: "primary" | "fallback" | "escalation" | "explicit";
     })
   | (EventBase & {
       event: "tool_proposed";
@@ -41,6 +45,10 @@ export type AgentStreamEvent =
     })
   | (EventBase & { event: "source"; source: CitationSource })
   | (EventBase & { event: "assistant_delta"; delta: string })
+  | (EventBase & {
+      event: "assistant_reset";
+      reason: "local_failure" | "intelligent_escalation";
+    })
   | (EventBase & {
       event: "assistant_done";
       source_count: number;
@@ -61,6 +69,7 @@ export type AgentChatRequest = {
   objective: string;
   web_research_enabled: boolean;
   revise_intent: boolean;
+  reasoning_mode: ReasoningMode;
   controlled_probe?: boolean;
 };
 

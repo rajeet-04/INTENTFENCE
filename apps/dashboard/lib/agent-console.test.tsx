@@ -38,6 +38,53 @@ test("Enter submits once while Shift+Enter preserves multiline input", async () 
   expect(requests[0].message).toBe("Line one");
 });
 
+test("cloud mode is sent and fallback replaces partial local text with provider evidence", async () => {
+  const modes: string[] = [];
+  const stream: AgentStreamFunction = async (request, handlers) => {
+    modes.push(request.reasoning_mode);
+    handlers.onEvent({ event: "session", sequence: 1, contract });
+    handlers.onEvent({
+      event: "model_status",
+      sequence: 2,
+      status: "thinking",
+      provider: "local",
+      route_reason: "primary",
+    });
+    handlers.onEvent({ event: "assistant_delta", sequence: 3, delta: "Partial local" });
+    handlers.onEvent({
+      event: "assistant_reset",
+      sequence: 4,
+      reason: "local_failure",
+    });
+    handlers.onEvent({
+      event: "model_status",
+      sequence: 5,
+      status: "answering",
+      provider: "cloud",
+      route_reason: "fallback",
+    });
+    handlers.onEvent({ event: "assistant_delta", sequence: 6, delta: "Cloud answer" });
+    handlers.onEvent({
+      event: "assistant_done",
+      sequence: 7,
+      source_count: 0,
+      tool_count: 0,
+      contract,
+    });
+  };
+  render(<AgentConsole stream={stream} />);
+  fireEvent.click(screen.getByRole("button", { name: "Cloud" }));
+  fireEvent.change(screen.getByLabelText("Ask IntentFence"), {
+    target: { value: "Use stronger reasoning" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+  await screen.findByText("Cloud answer");
+  expect(modes).toEqual(["cloud"]);
+  expect(screen.queryByText("Partial local")).toBeNull();
+  expect(screen.getByText("Cloud · fallback")).toBeTruthy();
+});
+
 test("streamed answers show authoritative ALLOW/BLOCK activity and safe sources", async () => {
   const stream: AgentStreamFunction = async (_request, handlers) => {
     handlers.onEvent({ event: "session", sequence: 1, contract });

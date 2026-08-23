@@ -6,6 +6,7 @@ import {
   streamAgentChat,
   type AgentChatRequest,
   type AgentStreamEvent,
+  type ReasoningMode,
 } from "@/lib/agent-api";
 import {
   agentReducer,
@@ -33,6 +34,7 @@ export function AgentConsole({
   const [state, dispatch] = useReducer(agentReducer, initialAgentConversationState);
   const [objectiveDraft, setObjectiveDraft] = useState(DEFAULT_OBJECTIVE);
   const [webDraft, setWebDraft] = useState(true);
+  const [reasoningMode, setReasoningMode] = useState<ReasoningMode>("auto");
   const [revisionOpen, setRevisionOpen] = useState(false);
   const controllerRef = useRef<AbortController | null>(null);
   const idRef = useRef(0);
@@ -60,6 +62,7 @@ export function AgentConsole({
           objective: objectiveDraft,
           web_research_enabled: webDraft,
           revise_intent: reviseIntent,
+          reasoning_mode: reasoningMode,
           controlled_probe: controlledProbe,
         },
         { onEvent: (event) => dispatch({ type: "event", event }) },
@@ -192,8 +195,23 @@ export function AgentConsole({
             onSubmit={submitDraft}
             streaming={state.streaming}
           />
+          <fieldset className="reasoning-selector" disabled={state.streaming}>
+            <legend>Model route</legend>
+            {(["auto", "local", "cloud"] as const).map((mode) => (
+              <button
+                aria-pressed={reasoningMode === mode}
+                key={mode}
+                onClick={() => setReasoningMode(mode)}
+                type="button"
+              >
+                {mode[0].toUpperCase() + mode.slice(1)}
+              </button>
+            ))}
+          </fieldset>
           <p className="agent-live-status" aria-live="polite">
-            {state.modelStatus ? `Agent status: ${state.modelStatus}` : state.error?.message ?? ""}
+            {state.modelStatus
+              ? `Agent status: ${state.modelStatus}`
+              : state.error?.message ?? ""}
           </p>
         </section>
       </div>
