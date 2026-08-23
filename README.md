@@ -97,6 +97,20 @@ Open:
 
 Always use `localhost:3000` for the dashboard because it is the default allowed development origin.
 
+### Temporary Vercel-to-Mac backend
+
+For the current hosted judge demo, the Vercel dashboard calls the Mac backend through a loopback-only Nginx proxy and an outbound Cloudflare Quick Tunnel:
+
+```bash
+# Terminal 1: keep the native backend running
+make dev-api
+
+# Terminal 2: keep this open for the lifetime of the public URL
+make quick-tunnel
+```
+
+The production dashboard API URL is defined in `apps/dashboard/.env.production`. Quick Tunnel hostnames are temporary: if the tunnel restarts, replace that public URL, add the new origin only if the frontend hostname changes, commit, and let Vercel rebuild. Nginx exposes only FastAPI on `127.0.0.1:8080`; Ollama remains private on localhost.
+
 ## What to demonstrate
 
 1. In **Agent**, submit: `Use web_search for current AI agent security news, then web_fetch one result, and answer with cited facts.`
