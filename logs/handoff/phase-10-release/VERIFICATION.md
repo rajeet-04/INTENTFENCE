@@ -54,8 +54,8 @@ curl http://localhost:8000/agent/readiness                   configured
 
 - Pre-documentation implementation commit: `2f1fbfcb2d44f59d9305ace0d9a8a84b89fde3f2`
 - Pre-documentation tree: `1c22d43b185d1b1d7d088600af3ab9cf48a33a49`
-- Final verified commit: pending final verification commit
-- Final verified tree: pending final verification commit
+- Verified implementation commit: `30e346dd84f6af95bd1c3cc7c7a8e985be8c1b20`
+- Verified implementation tree: `d548ed2cdfbeac9463e999ab4f45e9691560ea88`
 - Pull request: pending
 - CI: pending
 - Release tag: pending

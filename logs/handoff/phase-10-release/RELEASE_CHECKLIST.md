@@ -26,7 +26,7 @@
 - [x] 20-scenario benchmark persisted for the rendered Evidence view.
 - [x] README, architecture, judge script, and walkthrough cover Phases 1–10.
 - [x] Fresh full-suite counts recorded: 392 backend and 28 dashboard tests.
-- [ ] Verified implementation commit/tree IDs recorded after final commit.
+- [x] Verified implementation commit/tree IDs recorded in `VERIFICATION.md`.
 - [ ] CI checks green on the release branch and merge candidate.
 - [ ] PR merged to `main` with exact tree proof.
 - [ ] `v0.10.0` tag points to verified `main`.
