@@ -26,6 +26,6 @@ def test_quick_tunnel_launcher_never_embeds_credentials() -> None:
 def test_vercel_production_build_targets_https_tunnel_without_secrets() -> None:
     production_env = (ROOT / "apps/dashboard/.env.production").read_text().strip()
 
-    assert production_env.startswith("NEXT_PUBLIC_API_BASE_URL=https://")
+    assert production_env.startswith("NEXT_PUBLIC_TUNNEL_API_BASE_URL=https://")
     assert production_env.endswith(".trycloudflare.com")
     assert "KEY" not in production_env

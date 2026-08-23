@@ -109,7 +109,7 @@ make dev-api
 make quick-tunnel
 ```
 
-The production dashboard API URL is defined in `apps/dashboard/.env.production`. Quick Tunnel hostnames are temporary: if the tunnel restarts, replace that public URL, add the new origin only if the frontend hostname changes, commit, and let Vercel rebuild. Nginx exposes only FastAPI on `127.0.0.1:8080`; Ollama remains private on localhost.
+The production dashboard tunnel URL is defined as `NEXT_PUBLIC_TUNNEL_API_BASE_URL` in `apps/dashboard/.env.production`; it intentionally takes precedence over any stale `NEXT_PUBLIC_API_BASE_URL` in Vercel. Quick Tunnel hostnames are temporary: if the tunnel restarts, replace that public URL, commit, and let Vercel rebuild. Nginx exposes only FastAPI on `127.0.0.1:8080`; Ollama remains private on localhost.
 
 ## What to demonstrate
 
