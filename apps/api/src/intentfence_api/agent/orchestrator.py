@@ -5,6 +5,7 @@ from urllib.parse import urlparse
 import httpx
 from intentfence_contracts import SourceContext
 
+from intentfence_api.agent.model_router import CloudModelUnavailable
 from intentfence_api.gateway.ollama_agent import (
     _OLLAMA_TOOL_DEFINITIONS,
     _parse_tool_call,
@@ -15,6 +16,7 @@ from .models import (
     AgentChatRequest,
     AssistantDeltaEvent,
     AssistantDoneEvent,
+    AssistantResetEvent,
     ModelStatusEvent,
     SessionEvent,
     SourceEvent,
@@ -26,7 +28,13 @@ from .tool_executor import OllamaToolExecutor
 
 
 class StreamingChatProvider(Protocol):
-    def iter_chat(self, messages: list[dict], tools: list[dict]) -> Iterator[dict]: ...
+    def iter_chat(
+        self,
+        messages: list[dict],
+        tools: list[dict],
+        *,
+        reasoning_mode: str,
+    ) -> Iterator[dict]: ...
 
 
 _SYSTEM_INSTRUCTION = """You are the local IntentFence research assistant.
@@ -77,6 +85,12 @@ class Phase10ChatOrchestrator:
             yield from self._stream(request=request, session=session)
         except AgentError:
             raise
+        except CloudModelUnavailable as exc:
+            raise AgentError(
+                "CLOUD_MODEL_UNAVAILABLE",
+                "Ollama Cloud is unavailable. Retry or select Local mode.",
+                recoverable=True,
+            ) from exc
         except (httpx.ConnectError, httpx.TimeoutException) as exc:
             raise AgentError(
                 "OLLAMA_UNAVAILABLE",
@@ -204,11 +218,48 @@ class Phase10ChatOrchestrator:
             return
 
         for _turn in range(self.max_model_turns):
-            yield ModelStatusEvent(sequence=sequence, status=next_status)
-            sequence += 1
             content_parts: list[str] = []
             tool_calls: list[object] = []
-            for chunk in self.client.iter_chat(messages, _OLLAMA_TOOL_DEFINITIONS):
+            status_emitted = False
+            provider = "local"
+            route_reason = "primary"
+            for chunk in self.client.iter_chat(
+                messages,
+                _OLLAMA_TOOL_DEFINITIONS,
+                reasoning_mode=request.reasoning_mode.value,
+            ):
+                control = chunk.get("_intentfence_control")
+                if control == "route_start":
+                    provider = chunk.get("provider", "local")
+                    route_reason = chunk.get("route_reason", "primary")
+                    yield ModelStatusEvent(
+                        sequence=sequence,
+                        status=next_status,
+                        provider=provider,
+                        route_reason=route_reason,
+                    )
+                    sequence += 1
+                    status_emitted = True
+                    continue
+                if control == "assistant_reset":
+                    content_parts.clear()
+                    tool_calls.clear()
+                    yield AssistantResetEvent(
+                        sequence=sequence,
+                        reason=chunk.get("reason", "local_failure"),
+                    )
+                    sequence += 1
+                    status_emitted = False
+                    continue
+                if not status_emitted:
+                    yield ModelStatusEvent(
+                        sequence=sequence,
+                        status=next_status,
+                        provider=provider,
+                        route_reason=route_reason,
+                    )
+                    sequence += 1
+                    status_emitted = True
                 message = chunk.get("message")
                 if not isinstance(message, dict):
                     raise RuntimeError("Ollama response is missing an assistant message")

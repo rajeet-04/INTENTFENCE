@@ -7,8 +7,11 @@ from intentfence_api.agent.models import (
     AgentChatRequest,
     AgentContractSummary,
     AssistantDoneEvent,
+    AssistantResetEvent,
     ChatMessage,
     CitationSource,
+    ModelStatusEvent,
+    ReasoningMode,
     ToolDecisionEvent,
 )
 from intentfence_api.agent.url_safety import require_public_http_url
@@ -35,6 +38,56 @@ def test_agent_request_rejects_caller_owned_authority_fields() -> None:
                 "intent_contract": {"allowed_tools": ["read_file"]},
             }
         )
+
+
+def test_agent_request_defaults_to_auto_and_rejects_provider_configuration() -> None:
+    request = AgentChatRequest(
+        message="Analyze this task",
+        objective="Answer safely",
+    )
+
+    assert request.reasoning_mode is ReasoningMode.AUTO
+    with pytest.raises(ValidationError):
+        AgentChatRequest.model_validate(
+            {
+                "message": "Analyze this task",
+                "objective": "Answer safely",
+                "cloud_base_url": "https://attacker.example",
+            }
+        )
+    with pytest.raises(ValidationError):
+        AgentChatRequest(
+            message="Analyze this task",
+            objective="Answer safely",
+            reasoning_mode="turbo",
+        )
+
+
+def test_reset_and_provider_events_serialize_exactly() -> None:
+    adapter = TypeAdapter(AgentChatEvent)
+
+    assert adapter.dump_python(
+        AssistantResetEvent(sequence=4, reason="local_failure"), mode="json"
+    ) == {
+        "event": "assistant_reset",
+        "sequence": 4,
+        "reason": "local_failure",
+    }
+    assert adapter.dump_python(
+        ModelStatusEvent(
+            sequence=5,
+            status="thinking",
+            provider="cloud",
+            route_reason="fallback",
+        ),
+        mode="json",
+    ) == {
+        "event": "model_status",
+        "sequence": 5,
+        "status": "thinking",
+        "provider": "cloud",
+        "route_reason": "fallback",
+    }
 
 
 @pytest.mark.parametrize(

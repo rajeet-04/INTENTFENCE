@@ -71,7 +71,7 @@ class _ScriptedStreamingClient:
     def __init__(self, turns: list[list[dict[str, Any]]]) -> None:
         self.turns = list(turns)
 
-    def iter_chat(self, messages: list[dict], tools: list[dict]):
+    def iter_chat(self, messages: list[dict], tools: list[dict], *, reasoning_mode="auto"):
         del messages, tools
         if not self.turns:
             raise RuntimeError("controlled release sequence was exhausted")

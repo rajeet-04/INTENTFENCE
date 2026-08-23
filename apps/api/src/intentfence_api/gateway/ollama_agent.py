@@ -69,7 +69,14 @@ class OllamaAgentClient:
         response.raise_for_status()
         return response.json()
 
-    def iter_chat(self, messages: list[dict], tools: list[dict]) -> Iterator[dict]:
+    def iter_chat(
+        self,
+        messages: list[dict],
+        tools: list[dict],
+        *,
+        reasoning_mode: object = None,
+    ) -> Iterator[dict]:
+        del reasoning_mode
         payload = {
             "model": self.model,
             "messages": messages,

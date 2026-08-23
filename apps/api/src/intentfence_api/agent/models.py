@@ -16,6 +16,12 @@ class ChatRole(StrEnum):
     ASSISTANT = "assistant"
 
 
+class ReasoningMode(StrEnum):
+    AUTO = "auto"
+    LOCAL = "local"
+    CLOUD = "cloud"
+
+
 class ChatMessage(StrictModel):
     role: ChatRole
     content: str = Field(min_length=1, max_length=8000)
@@ -29,6 +35,7 @@ class AgentChatRequest(StrictModel):
     web_research_enabled: bool = True
     revise_intent: bool = False
     controlled_probe: bool = False
+    reasoning_mode: ReasoningMode = ReasoningMode.AUTO
 
     @model_validator(mode="after")
     def bounded_request(self) -> "AgentChatRequest":
@@ -70,6 +77,7 @@ class AgentEventType(StrEnum):
     TOOL_DECISION = "tool_decision"
     SOURCE = "source"
     ASSISTANT_DELTA = "assistant_delta"
+    ASSISTANT_RESET = "assistant_reset"
     ASSISTANT_DONE = "assistant_done"
     ERROR = "error"
 
@@ -86,6 +94,8 @@ class SessionEvent(EventModel):
 class ModelStatusEvent(EventModel):
     event: Literal[AgentEventType.MODEL_STATUS] = AgentEventType.MODEL_STATUS
     status: Literal["thinking", "searching", "reading", "answering"]
+    provider: Literal["local", "cloud"] = "local"
+    route_reason: Literal["primary", "fallback", "escalation", "explicit"] = "primary"
 
 
 class ToolProposedEvent(EventModel):
@@ -115,6 +125,11 @@ class AssistantDeltaEvent(EventModel):
     delta: str = Field(min_length=1, max_length=8000)
 
 
+class AssistantResetEvent(EventModel):
+    event: Literal[AgentEventType.ASSISTANT_RESET] = AgentEventType.ASSISTANT_RESET
+    reason: Literal["local_failure", "intelligent_escalation"]
+
+
 class AssistantDoneEvent(EventModel):
     event: Literal[AgentEventType.ASSISTANT_DONE] = AgentEventType.ASSISTANT_DONE
     source_count: int = Field(ge=0, le=100)
@@ -136,6 +151,7 @@ AgentChatEvent = Annotated[
     | ToolDecisionEvent
     | SourceEvent
     | AssistantDeltaEvent
+    | AssistantResetEvent
     | AssistantDoneEvent
     | ErrorEvent,
     Field(discriminator="event"),

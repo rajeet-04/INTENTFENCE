@@ -90,7 +90,7 @@ class ScriptedStreamingClient:
         self.turns = list(turns)
         self.requests: list[tuple[list[dict], list[dict]]] = []
 
-    def iter_chat(self, messages: list[dict], tools: list[dict]):
+    def iter_chat(self, messages: list[dict], tools: list[dict], *, reasoning_mode="auto"):
         self.requests.append((list(messages), list(tools)))
         yield from self.turns.pop(0)
 
@@ -206,7 +206,7 @@ def test_orchestrator_yields_answer_delta_before_model_stream_finishes(tmp_path)
     class CheckpointClient:
         after_first_resume = False
 
-        def iter_chat(self, messages: list[dict], tools: list[dict]):
+        def iter_chat(self, messages: list[dict], tools: list[dict], *, reasoning_mode="auto"):
             yield {"message": {"role": "assistant", "content": "First "}, "done": False}
             self.after_first_resume = True
             yield {"message": {"role": "assistant", "content": "second."}, "done": True}
@@ -230,6 +230,49 @@ def test_orchestrator_yields_answer_delta_before_model_stream_finishes(tmp_path)
     assert first_delta.event == AgentEventType.ASSISTANT_DELTA
     assert first_delta.delta == "First "
     assert client.after_first_resume is False
+
+
+def test_orchestrator_resets_partial_local_text_before_cloud_fallback(tmp_path) -> None:
+    routed_turn = [
+        {
+            "_intentfence_control": "route_start",
+            "provider": "local",
+            "route_reason": "primary",
+        },
+        {"message": {"role": "assistant", "content": "partial local"}, "done": False},
+        {"_intentfence_control": "assistant_reset", "reason": "local_failure"},
+        {
+            "_intentfence_control": "route_start",
+            "provider": "cloud",
+            "route_reason": "fallback",
+        },
+        {"message": {"role": "assistant", "content": "complete cloud"}, "done": True},
+    ]
+    orchestrator, store, _ = build_orchestrator(tmp_path, [routed_turn])
+    request = research_request()
+    session = store.resolve(
+        session_id=None,
+        objective=request.objective,
+        web_research_enabled=True,
+        revise_intent=False,
+    )
+
+    events = list(orchestrator.stream(request=request, session=session))
+
+    assert [event.event for event in events] == [
+        AgentEventType.SESSION,
+        AgentEventType.MODEL_STATUS,
+        AgentEventType.ASSISTANT_DELTA,
+        AgentEventType.ASSISTANT_RESET,
+        AgentEventType.MODEL_STATUS,
+        AgentEventType.ASSISTANT_DELTA,
+        AgentEventType.ASSISTANT_DONE,
+    ]
+    assert events[1].provider == "local"
+    assert events[3].reason == "local_failure"
+    assert events[4].provider == "cloud"
+    assert events[4].route_reason == "fallback"
+    assert events[5].delta == "complete cloud"
 
 
 def test_contract_revision_is_acknowledged_by_server_without_model_turn(tmp_path) -> None:
@@ -341,7 +384,7 @@ def test_orchestrator_maps_ollama_connection_failure_to_stable_safe_error(
     class OfflineClient:
         model = "qwen3:14b"
 
-        def iter_chat(self, messages: list[dict], tools: list[dict]):
+        def iter_chat(self, messages: list[dict], tools: list[dict], *, reasoning_mode="auto"):
             request = httpx.Request("POST", "http://127.0.0.1:11434/api/chat")
             raise httpx.ConnectError("connection details", request=request)
             yield
