@@ -9,6 +9,8 @@ node_modules/
 next-env.d.ts
 *.tsbuildinfo
 .env
+.attestation.jws
+attestation.jws
 .runtime/
 *.db
 *.sqlite
