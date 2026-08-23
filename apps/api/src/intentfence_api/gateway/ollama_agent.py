@@ -37,12 +37,14 @@ class OllamaAgentClient:
         base_url: str,
         model: str,
         context_length: int,
+        timeout_seconds: float = 300.0,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.context_length = context_length
-        self._client = httpx.Client(transport=transport, timeout=60.0)
+        self.timeout_seconds = timeout_seconds
+        self._client = httpx.Client(transport=transport, timeout=timeout_seconds)
 
     def chat(self, messages: list[dict], tools: list[dict]) -> dict:
         response = self._client.post(
@@ -52,6 +54,7 @@ class OllamaAgentClient:
                 "messages": messages,
                 "tools": tools,
                 "stream": False,
+                "think": False,
                 "options": {"num_ctx": self.context_length},
             },
         )
@@ -64,6 +67,7 @@ class OllamaAgentClient:
             "messages": messages,
             "tools": tools,
             "stream": True,
+            "think": False,
             "options": {"num_ctx": self.context_length},
         }
         with self._client.stream(
@@ -186,22 +190,66 @@ def _parse_tool_call(tool_call: object) -> tuple[str, dict]:
     return name, arguments
 
 
-_OLLAMA_TOOL_DEFINITIONS = [
-    {
+def _tool_definition(
+    name: str,
+    description: str,
+    properties: dict[str, dict],
+    required: list[str],
+) -> dict:
+    return {
         "type": "function",
         "function": {
             "name": name,
-            "description": f"Request the controlled {name} capability through IntentFence.",
-            "parameters": {"type": "object", "additionalProperties": True},
+            "description": description,
+            "parameters": {
+                "type": "object",
+                "properties": properties,
+                "required": required,
+                "additionalProperties": True,
+            },
         },
     }
-    for name in (
+
+
+_OLLAMA_TOOL_DEFINITIONS = [
+    _tool_definition(
         "web_search",
+        "Search the public web. Use this first for current information.",
+        {
+            "query": {"type": "string", "description": "Focused public-web query"},
+            "max_results": {"type": "integer", "minimum": 1, "maximum": 10},
+        },
+        ["query"],
+    ),
+    _tool_definition(
         "web_fetch",
+        "Fetch one public URL selected from web_search results for grounded details.",
+        {"url": {"type": "string", "description": "Absolute public result URL"}},
+        ["url"],
+    ),
+    _tool_definition(
         "browse_web",
-        "read_file",
+        "Request the generic protected browsing capability.",
+        {"url": {"type": "string"}},
+        ["url"],
+    ),
+    _tool_definition("read_file", "Read a protected file.", {"path": {"type": "string"}}, ["path"]),
+    _tool_definition(
         "write_file",
+        "Write a protected file.",
+        {"path": {"type": "string"}, "content": {"type": "string"}},
+        ["path", "content"],
+    ),
+    _tool_definition(
         "send_message",
+        "Send a message through a protected destination.",
+        {"destination": {"type": "string"}, "content": {"type": "string"}},
+        ["destination", "content"],
+    ),
+    _tool_definition(
         "http_request",
-    )
+        "Make a protected HTTP request.",
+        {"url": {"type": "string"}, "method": {"type": "string"}},
+        ["url"],
+    ),
 ]

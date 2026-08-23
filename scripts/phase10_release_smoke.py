@@ -285,6 +285,7 @@ def run_live_release_smoke(settings: Settings) -> dict[str, object]:
             base_url=base_url,
             model=settings.agent_ollama_model,
             context_length=settings.agent_ollama_context_length,
+            timeout_seconds=settings.agent_ollama_timeout_seconds,
         )
         store = AgentSessionStore()
         orchestrator = Phase10ChatOrchestrator(

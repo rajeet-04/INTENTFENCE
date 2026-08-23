@@ -15,6 +15,7 @@ def test_agent_and_live_web_settings_load_from_intentfence_environment(monkeypat
     )
     monkeypatch.setenv("INTENTFENCE_AGENT_OLLAMA_MODEL", "qwen3:8b")
     monkeypatch.setenv("INTENTFENCE_AGENT_OLLAMA_CONTEXT_LENGTH", "40960")
+    monkeypatch.setenv("INTENTFENCE_AGENT_OLLAMA_TIMEOUT_SECONDS", "240")
     monkeypatch.setenv("INTENTFENCE_LIVE_WEB_ENABLED", "true")
     monkeypatch.setenv("INTENTFENCE_OLLAMA_API_KEY", "test-secret")
     monkeypatch.setenv("INTENTFENCE_OLLAMA_WEB_BASE_URL", "https://web.ollama.test")
@@ -24,6 +25,7 @@ def test_agent_and_live_web_settings_load_from_intentfence_environment(monkeypat
     assert settings.agent_ollama_base_url == "http://ollama-agent.test:11434"
     assert settings.agent_ollama_model == "qwen3:8b"
     assert settings.agent_ollama_context_length == 40960
+    assert settings.agent_ollama_timeout_seconds == 240
     assert settings.live_web_enabled is True
     assert settings.ollama_api_key == "test-secret"
     assert settings.ollama_web_base_url == "https://web.ollama.test"

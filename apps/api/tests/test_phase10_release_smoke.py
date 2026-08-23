@@ -1,7 +1,11 @@
 import json
 
 import pytest
-from scripts.phase10_dev import build_dev_preflight, development_commands
+from scripts.phase10_dev import (
+    build_dev_preflight,
+    development_commands,
+    services_to_start,
+)
 from scripts.phase10_release_smoke import (
     build_preflight_summary,
     run_deterministic_release_smoke,
@@ -100,7 +104,6 @@ def test_dev_preflight_and_commands_are_secret_free_and_shell_independent() -> N
             "intentfence_api.app:app",
             "--app-dir",
             "apps/api/src",
-            "--reload",
             "--host",
             "127.0.0.1",
             "--port",
@@ -108,3 +111,10 @@ def test_dev_preflight_and_commands_are_secret_free_and_shell_independent() -> N
         ],
         "dashboard": ["/tools/bun", "run", "dev"],
     }
+
+
+def test_dev_startup_reuses_only_services_that_are_already_ready() -> None:
+    assert services_to_start(api_ready=False, dashboard_ready=False) == (True, True)
+    assert services_to_start(api_ready=True, dashboard_ready=False) == (False, True)
+    assert services_to_start(api_ready=False, dashboard_ready=True) == (True, False)
+    assert services_to_start(api_ready=True, dashboard_ready=True) == (False, False)

@@ -4,7 +4,11 @@ from datetime import UTC, datetime, timedelta
 import httpx
 from intentfence_contracts import DecisionType, IntentContract, RiskTolerance
 
-from intentfence_api.gateway.ollama_agent import OllamaAgentClient, OllamaAgentRunner
+from intentfence_api.gateway.ollama_agent import (
+    _OLLAMA_TOOL_DEFINITIONS,
+    OllamaAgentClient,
+    OllamaAgentRunner,
+)
 from intentfence_api.gateway.runtime import SandboxProtectedToolRuntime
 from intentfence_api.gateway.sandbox import SandboxEnvironment
 
@@ -105,8 +109,11 @@ def test_ollama_chat_client_posts_non_streaming_tool_request_with_context_length
         base_url="http://127.0.0.1:11434",
         model="qwen3:14b",
         context_length=32768,
+        timeout_seconds=240,
         transport=httpx.MockTransport(receive),
     )
+
+    assert client.timeout_seconds == 240
 
     result = client.chat(
         [{"role": "user", "content": "Compare hotels"}],
@@ -120,10 +127,22 @@ def test_ollama_chat_client_posts_non_streaming_tool_request_with_context_length
             "messages": [{"role": "user", "content": "Compare hotels"}],
             "tools": [{"type": "function", "function": {"name": "web_search"}}],
             "stream": False,
+            "think": False,
             "options": {"num_ctx": 32768},
         },
     }
     assert result["message"]["content"] == "done"
+
+
+def test_web_tools_explain_required_arguments_to_the_local_model() -> None:
+    definitions = {
+        item["function"]["name"]: item["function"]
+        for item in _OLLAMA_TOOL_DEFINITIONS
+    }
+
+    assert definitions["web_search"]["parameters"]["required"] == ["query"]
+    assert definitions["web_fetch"]["parameters"]["required"] == ["url"]
+    assert "search results" in definitions["web_fetch"]["description"].lower()
 
 
 def test_search_then_poisoned_secret_read_is_blocked(tmp_path) -> None:

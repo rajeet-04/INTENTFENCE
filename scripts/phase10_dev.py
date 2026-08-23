@@ -53,7 +53,6 @@ def development_commands(
             "intentfence_api.app:app",
             "--app-dir",
             "apps/api/src",
-            "--reload",
             "--host",
             api_host,
             "--port",
@@ -61,6 +60,11 @@ def development_commands(
         ],
         "dashboard": [bun_executable, "run", "dev"],
     }
+
+
+def services_to_start(*, api_ready: bool, dashboard_ready: bool) -> tuple[bool, bool]:
+    """Return which services this launcher owns and therefore may terminate."""
+    return not api_ready, not dashboard_ready
 
 
 def _bun_executable() -> str | None:
@@ -92,15 +96,20 @@ def _ollama_status(settings: Settings) -> tuple[bool, bool]:
     return True, available
 
 
+def _url_ready(url: str) -> bool:
+    try:
+        with urlopen(url, timeout=1.0) as response:
+            return 200 <= response.status < 500
+    except (OSError, URLError):
+        return False
+
+
 def _wait_url(url: str, *, timeout_seconds: float) -> bool:
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:
-        try:
-            with urlopen(url, timeout=1.0) as response:
-                if 200 <= response.status < 500:
-                    return True
-        except (OSError, URLError):
-            time.sleep(0.2)
+        if _url_ready(url):
+            return True
+        time.sleep(0.2)
     return False
 
 
@@ -146,10 +155,19 @@ def main() -> int:
         api_host="127.0.0.1",
         api_port=settings.api_port,
     )
-    children = [
-        subprocess.Popen(commands["api"], cwd=Path.cwd()),
-        subprocess.Popen(commands["dashboard"], cwd=Path.cwd() / "apps/dashboard"),
-    ]
+    api_url = f"http://127.0.0.1:{settings.api_port}"
+    dashboard_url = "http://127.0.0.1:3000"
+    start_api, start_dashboard = services_to_start(
+        api_ready=_url_ready(f"{api_url}/health"),
+        dashboard_ready=_url_ready(dashboard_url),
+    )
+    children: list[subprocess.Popen] = []
+    if start_api:
+        children.append(subprocess.Popen(commands["api"], cwd=Path.cwd()))
+    if start_dashboard:
+        children.append(
+            subprocess.Popen(commands["dashboard"], cwd=Path.cwd() / "apps/dashboard")
+        )
     stopping = False
 
     def stop(_signum: int, _frame: FrameType | None) -> None:
@@ -159,8 +177,6 @@ def main() -> int:
 
     signal.signal(signal.SIGINT, stop)
     signal.signal(signal.SIGTERM, stop)
-    api_url = f"http://127.0.0.1:{settings.api_port}"
-    dashboard_url = "http://127.0.0.1:3000"
     try:
         if not _wait_url(f"{api_url}/health", timeout_seconds=30):
             raise RuntimeError("IntentFence API did not become ready within 30 seconds")

@@ -39,6 +39,7 @@ agent_client = OllamaAgentClient(
     base_url=settings.agent_ollama_base_url,
     model=settings.agent_ollama_model,
     context_length=settings.agent_ollama_context_length,
+    timeout_seconds=settings.agent_ollama_timeout_seconds,
 )
 agent_web_provider = OllamaWebProvider(
     api_key=settings.ollama_api_key if settings.live_web_enabled else None,

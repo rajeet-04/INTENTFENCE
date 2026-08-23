@@ -61,6 +61,7 @@ def test_ollama_client_streams_ndjson_tool_chunks_with_context_length() -> None:
             "messages": messages,
             "tools": tools,
             "stream": True,
+            "think": False,
             "options": {"num_ctx": 32768},
         },
     }

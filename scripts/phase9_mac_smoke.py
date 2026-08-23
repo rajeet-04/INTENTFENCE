@@ -329,6 +329,7 @@ def main() -> None:
         base_url=base_url,
         model=settings.agent_ollama_model,
         context_length=settings.agent_ollama_context_length,
+        timeout_seconds=settings.agent_ollama_timeout_seconds,
     )
     web = OllamaWebProvider(
         api_key=settings.ollama_api_key,
