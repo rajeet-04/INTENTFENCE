@@ -1,18 +1,11 @@
 from datetime import UTC, datetime
 from typing import Any
-from uuid import uuid4
 
-from intentfence_contracts import (
-    ActionReceipt,
-    DecisionSource,
-    DecisionType,
-    IntentContract,
-    ResourceClass,
-    SourceContext,
-)
+from intentfence_contracts import IntentContract, SourceContext
 from pydantic import BaseModel, ConfigDict, Field
 
-from .models import GatewayExecution, GatewayMode, SecurityEvent
+from .fail_closed import build_fail_closed_execution
+from .models import GatewayExecution
 from .runtime import SandboxProtectedToolRuntime
 from .service import IntentFenceGateway
 from .tools import CORE_TOOL_NAMES, normalize_tool_request
@@ -40,7 +33,16 @@ def run_mcp_tool_call(
     runtime: SandboxProtectedToolRuntime,
 ) -> GatewayExecution:
     if call.tool_name not in CORE_TOOL_NAMES:
-        return _unsupported_tool_execution(call, intent_contract)
+        return build_fail_closed_execution(
+            request_id=call.request_id,
+            session_id=call.session_id,
+            intent_contract=intent_contract,
+            tool=call.tool_name,
+            data_refs=list(call.data_refs),
+            rule_id="MCP_TOOL_UNSUPPORTED",
+            reason="The MCP tool name is outside the protected tool boundary.",
+            scenario_id="phase9-mcp",
+        )
 
     normalized = normalize_tool_request(
         request_id=call.request_id,
@@ -58,68 +60,4 @@ def run_mcp_tool_call(
         intent_contract,
         handler=runtime.handler(call.tool_name),
         scenario_id="phase9-mcp",
-    )
-
-
-def _unsupported_tool_execution(
-    call: McpToolCallEnvelope,
-    intent_contract: IntentContract,
-) -> GatewayExecution:
-    now = datetime.now(UTC)
-    receipt_id = f"receipt-{uuid4().hex}"
-    reason = "The MCP tool name is outside the protected tool boundary."
-    matched_rules = ["MCP_TOOL_UNSUPPORTED"]
-    receipt = ActionReceipt(
-        receipt_id=receipt_id,
-        timestamp=now,
-        session_id=call.session_id,
-        intent_id=intent_contract.intent_id,
-        request_id=call.request_id,
-        tool=call.tool_name,
-        resource_class=ResourceClass.UNKNOWN,
-        destination=None,
-        destination_class=None,
-        data_refs=list(call.data_refs),
-        matched_rules=matched_rules,
-        rule_strength=None,
-        semantic_relevance_score=None,
-        semantic_confidence=None,
-        risk_score=1.0,
-        decision_source=DecisionSource.POLICY,
-        final_decision=DecisionType.BLOCK,
-        reason=reason,
-        latency_ms=0,
-    )
-    event = SecurityEvent(
-        event_id=f"event-{uuid4().hex}",
-        scenario_id="phase9-mcp",
-        session_id=call.session_id,
-        request_id=call.request_id,
-        intent_id=intent_contract.intent_id,
-        contract_version=intent_contract.contract_version,
-        gateway_mode=GatewayMode.ENABLED,
-        tool=call.tool_name,
-        resource_class=ResourceClass.UNKNOWN,
-        destination=None,
-        destination_class=None,
-        data_sensitivity=None,
-        matched_rules=matched_rules,
-        semantic_relevance=None,
-        semantic_confidence=None,
-        accumulated_risk=0.0,
-        risk_score=1.0,
-        final_decision=DecisionType.BLOCK,
-        decision_source=DecisionSource.POLICY,
-        latency_ms=0,
-        workflow_completed=False,
-        reason=reason,
-    )
-    return GatewayExecution(
-        decision=DecisionType.BLOCK,
-        reason=reason,
-        receipt_id=receipt_id,
-        event=event,
-        executed=False,
-        result=None,
-        receipt=receipt,
     )
