@@ -8,7 +8,7 @@ Branch: `phase/10-release`
 | Gate | Result |
 | --- | --- |
 | Focused Ollama Cloud routing/API tests | 51 passed |
-| Full backend suite | 415 passed |
+| Full backend suite | 417 passed |
 | Dashboard suite | 30 passed |
 | Ruff, ESLint, TypeScript, and production build | passed |
 | Native `make dev` preflight | CONFIGURED; API, dashboard, Ollama, model, and key presence detected |
@@ -41,7 +41,7 @@ Branch: `phase/10-release`
 .venv/bin/python -m pytest -q <focused Phase 9/10 tests>     exit 0
 .venv/bin/python -m ruff check <changed Python files>        exit 0
 make phase10-smoke                                           exit 0 / PASS
-make verify BUN=/Users/rajeet/.bun/bin/bun                   415 + 30 passed
+make verify BUN=/Users/rajeet/.bun/bin/bun                   417 + 30 passed
 make dev                                                     CONFIGURED
 make phase10-live-smoke                                      exit 0 / PASS
 make phase10-cloud-fallback-smoke                            exit 0 / PASS
@@ -56,8 +56,8 @@ curl http://localhost:8000/agent/readiness                   configured
 
 - Pre-documentation implementation commit: `2f1fbfcb2d44f59d9305ace0d9a8a84b89fde3f2`
 - Pre-documentation tree: `1c22d43b185d1b1d7d088600af3ab9cf48a33a49`
-- Verified implementation commit: pending final hardening commit
-- Verified implementation tree: pending final hardening commit
+- Final hardening merge commit: `b70b6f7`
+- Exact remote head: verify with `git rev-parse origin/main`
 - Pull request: pending
 - CI: pending
 - Release tag: pending
