@@ -6,11 +6,12 @@ from .benchmarks import latest_benchmark_payload
 from .config import get_settings
 from .gateway.adapters import Phase5SemanticAdapter
 from .gateway.demo import HotelAttackComparison, run_hotel_attack_demo
+from .gateway.mcp import run_mcp_tool_call
 from .gateway.models import GatewayExecution
 from .gateway.runtime import SandboxProtectedToolRuntime
 from .gateway.service import IntentFenceGateway
 from .gateway.tools import normalize_tool_request
-from .schemas import AuthorizeRequest, GatewayInterceptRequest
+from .schemas import AuthorizeRequest, GatewayInterceptRequest, McpInterceptRequest
 from .semantic import build_default_semantic_judge
 from .services.policy_authorizer import authorize_request
 
@@ -75,6 +76,16 @@ def gateway_intercept(request: GatewayInterceptRequest) -> GatewayExecution:
         request.intent_contract,
         handler=handler,
         scenario_id=request.scenario_id,
+    )
+
+
+@app.post("/mcp/tool-call", response_model=GatewayExecution)
+def mcp_tool_call(request: McpInterceptRequest) -> GatewayExecution:
+    return run_mcp_tool_call(
+        request.call,
+        request.intent_contract,
+        gateway=gateway,
+        runtime=tool_runtime,
     )
 
 

@@ -11,6 +11,7 @@ from .demo import (
     build_hotel_attack_scenario,
     run_hotel_attack_demo,
 )
+from .mcp import McpToolCallEnvelope, run_mcp_tool_call
 from .models import ComponentDecision, GatewayExecution, GatewayMode, SecurityEvent
 from .runtime import SandboxProtectedToolRuntime
 from .service import IntentFenceGateway
@@ -32,6 +33,7 @@ __all__ = [
     "GatewayMode",
     "HotelAttackComparison",
     "IntentFenceGateway",
+    "McpToolCallEnvelope",
     "NormalizedToolRequest",
     "Phase5SemanticAdapter",
     "PolicyAdapter",
@@ -43,4 +45,5 @@ __all__ = [
     "build_hotel_attack_scenario",
     "normalize_tool_request",
     "run_hotel_attack_demo",
+    "run_mcp_tool_call",
 ]
