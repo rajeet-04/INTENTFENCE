@@ -1,7 +1,7 @@
 # IntentFence Phase 10 Agent Console and Release Design
 
 **Date:** 2026-08-23
-**Status:** Approved architecture; written specification awaiting user review
+**Status:** Approved
 **Branch:** `phase/10-release`
 **Authoritative issue:** GitHub Issue #13
 
