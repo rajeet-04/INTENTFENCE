@@ -12,7 +12,7 @@ Branch: `phase/10-release`
 | Dashboard suite | 30 passed |
 | Ruff, ESLint, TypeScript, and production build | passed |
 | Native `make dev` preflight | CONFIGURED; API, dashboard, Ollama, model, and key presence detected |
-| Live Phase 10 smoke | PASS |
+| Earlier local/web smoke | PASS before final SSRF hardening; current hosted fetch 404 fails closed |
 | Forced live Ollama Cloud fallback | PASS; local attempted, cloud used, 11 answer characters |
 | Browser product walkthrough | PASS; no final console errors |
 | Stored benchmark | 20 scenarios, 32 actions |
@@ -56,8 +56,8 @@ curl http://localhost:8000/agent/readiness                   configured
 
 - Pre-documentation implementation commit: `2f1fbfcb2d44f59d9305ace0d9a8a84b89fde3f2`
 - Pre-documentation tree: `1c22d43b185d1b1d7d088600af3ab9cf48a33a49`
-- Verified implementation commit: `30e346dd84f6af95bd1c3cc7c7a8e985be8c1b20`
-- Verified implementation tree: `d548ed2cdfbeac9463e999ab4f45e9691560ea88`
+- Verified implementation commit: pending final hardening commit
+- Verified implementation tree: pending final hardening commit
 - Pull request: pending
 - CI: pending
 - Release tag: pending

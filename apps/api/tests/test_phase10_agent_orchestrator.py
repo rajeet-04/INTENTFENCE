@@ -89,9 +89,11 @@ class ScriptedStreamingClient:
     def __init__(self, turns: list[list[dict]]) -> None:
         self.turns = list(turns)
         self.requests: list[tuple[list[dict], list[dict]]] = []
+        self.reasoning_modes: list[str] = []
 
     def iter_chat(self, messages: list[dict], tools: list[dict], *, reasoning_mode="auto"):
         self.requests.append((list(messages), list(tools)))
+        self.reasoning_modes.append(reasoning_mode)
         yield from self.turns.pop(0)
 
 
@@ -273,6 +275,45 @@ def test_orchestrator_resets_partial_local_text_before_cloud_fallback(tmp_path) 
     assert events[4].provider == "cloud"
     assert events[4].route_reason == "fallback"
     assert events[5].delta == "complete cloud"
+
+
+def test_orchestrator_keeps_cloud_route_for_later_tool_turns(tmp_path) -> None:
+    turns = [
+        stream_tool("web_search", {"query": "current research"}),
+        [
+            {
+                "_intentfence_control": "route_start",
+                "provider": "local",
+                "route_reason": "primary",
+            },
+            {
+                "_intentfence_control": "route_start",
+                "provider": "cloud",
+                "route_reason": "fallback",
+            },
+            *stream_tool("web_fetch", {"url": "https://sources.example/article"}),
+        ],
+        [
+            {
+                "_intentfence_control": "route_start",
+                "provider": "cloud",
+                "route_reason": "explicit",
+            },
+            *stream_answer("Cloud completed the routed request."),
+        ],
+    ]
+    orchestrator, store, _ = build_orchestrator(tmp_path, turns)
+    request = research_request()
+    session = store.resolve(
+        session_id=None,
+        objective=request.objective,
+        web_research_enabled=True,
+        revise_intent=False,
+    )
+
+    list(orchestrator.stream(request=request, session=session))
+
+    assert orchestrator.client.reasoning_modes == ["auto", "auto", "cloud"]
 
 
 def test_contract_revision_is_acknowledged_by_server_without_model_turn(tmp_path) -> None:

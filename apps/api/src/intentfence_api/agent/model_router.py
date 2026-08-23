@@ -73,12 +73,12 @@ class OllamaModelRouter:
         local_tools = list(tools)
         if reasoning_mode == "auto" and self.cloud_client is not None:
             local_tools.append(_OLLAMA_CLOUD_ESCALATION_TOOL)
-        content_emitted = False
+        turn_output_emitted = False
         try:
             for chunk in self.local_client.iter_chat(messages, local_tools):
                 _validate_model_chunk(chunk)
                 if reasoning_mode == "auto" and _is_valid_escalation(chunk):
-                    if content_emitted:
+                    if turn_output_emitted:
                         yield _assistant_reset("intelligent_escalation")
                     yield from self._cloud_turn(
                         messages,
@@ -86,12 +86,12 @@ class OllamaModelRouter:
                         route_reason="escalation",
                     )
                     return
-                content_emitted = content_emitted or _has_assistant_content(chunk)
+                turn_output_emitted = turn_output_emitted or _has_turn_output(chunk)
                 yield chunk
         except _FALLBACK_ERRORS:
             if reasoning_mode == "local":
                 raise
-            if content_emitted:
+            if turn_output_emitted:
                 yield _assistant_reset("local_failure")
             yield from self._cloud_turn(messages, tools, route_reason="fallback")
 
@@ -132,12 +132,14 @@ def _validate_model_chunk(chunk: object) -> None:
         raise OllamaStreamError("Ollama response is missing an assistant message")
 
 
-def _has_assistant_content(chunk: dict) -> bool:
+def _has_turn_output(chunk: dict) -> bool:
     message = chunk.get("message")
     return (
         isinstance(message, dict)
-        and isinstance(message.get("content"), str)
-        and bool(message["content"])
+        and (
+            (isinstance(message.get("content"), str) and bool(message["content"]))
+            or (isinstance(message.get("tool_calls"), list) and bool(message["tool_calls"]))
+        )
     )
 
 

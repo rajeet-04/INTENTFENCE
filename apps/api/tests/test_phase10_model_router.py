@@ -129,6 +129,22 @@ def test_midstream_failure_resets_partial_local_output_before_cloud() -> None:
     assert events[2]["reason"] == "local_failure"
 
 
+def test_failure_after_partial_tool_call_resets_it_before_cloud() -> None:
+    class InterruptedToolClient(ScriptedClient):
+        def iter_chat(self, messages: list[dict], tools: list[dict]):
+            yield tool_chunk("web_search", {"query": "must not execute"})
+            raise OllamaStreamError("interrupted")
+
+    events = list(
+        OllamaModelRouter(
+            local_client=InterruptedToolClient(),
+            cloud_client=ScriptedClient(chunks=[answer_chunk("cloud")]),
+        ).iter_chat([], BASE_TOOLS, reasoning_mode="auto")
+    )
+
+    assert any(item.get("_intentfence_control") == "assistant_reset" for item in events)
+
+
 def test_local_mode_never_calls_cloud() -> None:
     local_failure = httpx.ConnectError("offline")
     cloud = ScriptedClient(chunks=[answer_chunk("cloud")])

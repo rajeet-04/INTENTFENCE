@@ -217,6 +217,7 @@ class Phase10ChatOrchestrator:
             )
             return
 
+        turn_reasoning_mode = request.reasoning_mode.value
         for _turn in range(self.max_model_turns):
             content_parts: list[str] = []
             tool_calls: list[object] = []
@@ -226,12 +227,14 @@ class Phase10ChatOrchestrator:
             for chunk in self.client.iter_chat(
                 messages,
                 _OLLAMA_TOOL_DEFINITIONS,
-                reasoning_mode=request.reasoning_mode.value,
+                reasoning_mode=turn_reasoning_mode,
             ):
                 control = chunk.get("_intentfence_control")
                 if control == "route_start":
                     provider = chunk.get("provider", "local")
                     route_reason = chunk.get("route_reason", "primary")
+                    if provider == "cloud":
+                        turn_reasoning_mode = "cloud"
                     yield ModelStatusEvent(
                         sequence=sequence,
                         status=next_status,

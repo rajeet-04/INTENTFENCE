@@ -1,6 +1,4 @@
 import json
-import re
-from html import unescape
 
 import httpx
 
@@ -25,12 +23,7 @@ class OllamaWebProvider:
         )
 
     def fetch(self, url: str) -> dict[str, object]:
-        try:
-            return self._post_json("/api/web_fetch", {"url": url})
-        except httpx.HTTPStatusError as exc:
-            if exc.response.status_code != 404:
-                raise
-        return self._direct_public_fetch(url)
+        return self._post_json("/api/web_fetch", {"url": url})
 
     def _post_json(self, path: str, payload: dict[str, object]) -> dict[str, object]:
         with self._client.stream(
@@ -45,27 +38,6 @@ class OllamaWebProvider:
         if not isinstance(value, dict):
             raise ValueError("web provider response must be an object")
         return value
-
-    def _direct_public_fetch(self, url: str) -> dict[str, object]:
-        with self._client.stream(
-            "GET",
-            url,
-            headers={"User-Agent": "IntentFence/0.10 public-research-fetch"},
-            follow_redirects=False,
-        ) as response:
-            response.raise_for_status()
-            content_type = response.headers.get("content-type", "").lower()
-            if not content_type.startswith(("text/", "application/xhtml+xml")):
-                raise ValueError("direct public fetch requires a text response")
-            body = _read_bounded_body(response)
-        content = body.decode("utf-8", errors="replace")
-        title_match = re.search(r"<title[^>]*>(.*?)</title>", content, re.I | re.S)
-        title = (
-            unescape(re.sub(r"\s+", " ", title_match.group(1))).strip()
-            if title_match
-            else "Fetched public page"
-        )
-        return {"title": title[:240], "content": content, "links": []}
 
     def _authorization_headers(self) -> dict[str, str]:
         key = self.api_key.strip() if self.api_key else ""
