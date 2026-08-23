@@ -1,3 +1,6 @@
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+
 import type { ConversationMessage } from "@/lib/agent-state";
 
 import { SourceCards } from "./SourceCards";
@@ -25,7 +28,24 @@ export function ChatMessage({ message }: { message: ConversationMessage }) {
             ))}
           </div>
         ) : null}
-        {message.content ? <div className="message-content">{message.content}</div> : null}
+        {message.content ? (
+          <div className="message-content">
+            {message.role === "assistant" ? (
+              <ReactMarkdown
+                components={{
+                  a: ({ children, ...props }) => (
+                    <a {...props} rel="noreferrer noopener" target="_blank">
+                      {children}
+                    </a>
+                  ),
+                }}
+                remarkPlugins={[remarkGfm]}
+              >
+                {message.content}
+              </ReactMarkdown>
+            ) : message.content}
+          </div>
+        ) : null}
         {message.status === "streaming" && !message.content ? (
           <p className="thinking-label">Authorizing the next step…</p>
         ) : null}

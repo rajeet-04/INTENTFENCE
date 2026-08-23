@@ -1185,7 +1185,111 @@ button {
   border-radius: 4px 14px 14px;
   background: white;
   line-height: 1.62;
-  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.message-content > :first-child {
+  margin-top: 0;
+}
+
+.message-content > :last-child {
+  margin-bottom: 0;
+}
+
+.message-content p,
+.message-content ul,
+.message-content ol,
+.message-content blockquote,
+.message-content table,
+.message-content pre {
+  margin: 0 0 0.9em;
+}
+
+.message-content h1,
+.message-content h2,
+.message-content h3,
+.message-content h4 {
+  margin: 1.15em 0 0.45em;
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+}
+
+.message-content h1 {
+  font-size: 1.3rem;
+}
+
+.message-content h2 {
+  font-size: 1.12rem;
+}
+
+.message-content h3,
+.message-content h4 {
+  font-size: 0.98rem;
+}
+
+.message-content ul,
+.message-content ol {
+  padding-left: 1.35rem;
+}
+
+.message-content li + li {
+  margin-top: 0.3em;
+}
+
+.message-content blockquote {
+  padding: 0.2em 0 0.2em 0.9em;
+  border-left: 3px solid #9eb4e5;
+  color: var(--muted);
+}
+
+.message-content a {
+  color: var(--accent);
+  font-weight: 700;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+.message-content code {
+  padding: 0.12em 0.35em;
+  border: 1px solid #dce2ea;
+  border-radius: 5px;
+  background: #f3f5f8;
+  font: 0.86em ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.message-content pre {
+  overflow-x: auto;
+  padding: 12px;
+  border-radius: 9px;
+  background: #172033;
+  color: #edf2f7;
+}
+
+.message-content pre code {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.message-content table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.message-content th,
+.message-content td {
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  text-align: left;
+}
+
+.message-content th {
+  background: var(--surface-subtle);
+  font-weight: 800;
 }
 
 .chat-message[data-role="user"] .message-content {
@@ -1194,6 +1298,7 @@ button {
   border-radius: 14px 14px 4px;
   background: #132a5e;
   color: white;
+  white-space: pre-wrap;
 }
 
 .thinking-label {

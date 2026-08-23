@@ -11,9 +11,11 @@ const panelSource = readFileSync(
 );
 const viewModelSource = readFileSync(new URL("./security-console.ts", import.meta.url), "utf8");
 
-test("security console loads the latest persisted benchmark summary", () => {
-  expect(consoleSource).toContain("fetchLatestBenchmarkSummary");
-  expect(consoleSource).toContain("benchmarkPayload");
+test("current security console renders live agent evidence without demo fetches", () => {
+  expect(consoleSource).toContain("AgentConversationState");
+  expect(consoleSource).toContain("message.activities");
+  expect(consoleSource).not.toContain("fetchHotelAttackDemo");
+  expect(consoleSource).not.toContain("fetchLatestBenchmarkSummary");
 });
 
 test("view model accepts measured benchmark records instead of forcing pending", () => {
