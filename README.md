@@ -72,6 +72,9 @@ INTENTFENCE_AGENT_OLLAMA_BASE_URL=http://127.0.0.1:11434
 INTENTFENCE_AGENT_OLLAMA_MODEL=qwen3:14b
 INTENTFENCE_AGENT_OLLAMA_CONTEXT_LENGTH=32768
 INTENTFENCE_AGENT_OLLAMA_TIMEOUT_SECONDS=300
+INTENTFENCE_AGENT_CLOUD_FALLBACK_ENABLED=true
+INTENTFENCE_AGENT_CLOUD_BASE_URL=https://ollama.com
+INTENTFENCE_AGENT_CLOUD_MODEL=gpt-oss:120b-cloud
 INTENTFENCE_LIVE_WEB_ENABLED=true
 INTENTFENCE_OLLAMA_API_KEY=<local key; never commit>
 ```
@@ -97,7 +100,7 @@ Always use `localhost:3000` for the dashboard because it is the default allowed 
 ## What to demonstrate
 
 1. In **Agent**, submit: `Use web_search for current AI agent security news, then web_fetch one result, and answer with cited facts.`
-2. Show `Web Search — ALLOW`, `Web Fetch — ALLOW`, the source card, and cited local-model answer.
+2. Keep **Auto** selected. Show the Local/Cloud provider badge, `Web Search — ALLOW`, `Web Fetch — ALLOW`, sources, and answer.
 3. Open **Revise objective**, turn **Web research** off, and apply the revision.
 4. Click **Run controlled browse probe** and show `BLOCK`, `Executed: No`, the rule, latency, and receipt.
 5. Open **Evidence**, run the hotel attack simulation, and compare the unprotected and protected handlers.
@@ -118,6 +121,7 @@ Real M4/Ollama/hosted-web gate:
 
 ```bash
 make phase10-live-smoke
+make phase10-cloud-fallback-smoke
 ```
 
 Persist benchmark evidence for the dashboard:
@@ -128,6 +132,8 @@ Persist benchmark evidence for the dashboard:
 ```
 
 CI never requires Ollama, internet access, or credentials. The live gate is explicitly separate and its output contains only status, count, and decision metadata.
+
+Routing modes are **Auto** (local first, cloud on failure or bounded high-complexity escalation), **Local** (never cloud), and **Cloud** (explicit cloud). A mid-stream fallback clears partial model text while preserving completed tool receipts and sources. Both providers propose through the same IntentFence gateway; changing models never changes authority.
 
 ## Security invariants
 

@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | Browser | user text, presentation state, abort/retry | contract IDs supplied as authority, trusted labels, execution claims |
 | Agent API | session lookup, contract creation/revision, SSE lifecycle | model output and browser history as authorization |
-| Local model | reasoning, answer text, tool proposals | its own authorization judgment |
+| Local/cloud model | reasoning, answer text, tool proposals | its own authorization judgment |
 | IntentFence gateway | state, labels, classification, policy composition, receipts, handler gate | external content and model-provided security metadata |
 | Tool providers | search/fetch or sandboxed side effect after `ALLOW` | authority embedded in retrieved content |
 
@@ -65,6 +65,7 @@ The precedence is `hard BLOCK > BLOCK > REQUIRE_APPROVAL > semantic recommendati
 
 - `session`
 - `model_status`
+- `assistant_reset`
 - `tool_proposed`
 - `tool_decision`
 - `source`
@@ -74,6 +75,12 @@ The precedence is `hard BLOCK > BLOCK > REQUIRE_APPROVAL > semantic recommendati
 
 The dashboard parser handles arbitrary network chunking and updates a reducer-owned conversation state. Stop aborts the browser request; retry resubmits the last safe user message. Errors expose stable recovery guidance rather than provider bodies or credentials.
 
+## Model routing
+
+The server supports `auto`, `local`, and `cloud`. Auto starts with local `qwen3:14b`, falls back to `gpt-oss:120b-cloud` on typed transport/stream failures, and permits one schema-validated high-complexity escalation per turn. Local never calls cloud; Cloud is explicit. Route changes emit provider metadata. If local text was already streamed, `assistant_reset` removes only that partial text; completed tool results, receipts, sources, and contract state remain intact and are never replayed. The Ollama key is server-only, and every provider uses the same protected executor and gateway.
+
 ## Deterministic and live evidence
 
 CI uses fake model/web providers but the real orchestrator, gateway, poison paths, hotel demo, and benchmark. `make phase10-live-smoke` additionally requires local Ollama and hosted web access. It verifies authorized search, citations, a non-empty answer, and either an authorized fetch or an authoritative `TOOL_PROVIDER_ERROR` receipt when the hosted fetch endpoint is unavailable. Poison actions remain blocked and no attacker sink executes.
+
+`make phase10-cloud-fallback-smoke` forces the local endpoint to fail and proves the configured cloud model returns a non-empty answer. Its report contains route metadata only.

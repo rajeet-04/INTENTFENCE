@@ -7,12 +7,13 @@ Branch: `phase/10-release`
 
 | Gate | Result |
 | --- | --- |
-| Focused Phase 10 safety/readiness/orchestrator tests | 40 passed |
-| Full backend suite | 392 passed |
-| Dashboard suite | 28 passed |
+| Focused Ollama Cloud routing/API tests | 51 passed |
+| Full backend suite | 415 passed |
+| Dashboard suite | 30 passed |
 | Ruff, ESLint, TypeScript, and production build | passed |
 | Native `make dev` preflight | CONFIGURED; API, dashboard, Ollama, model, and key presence detected |
 | Live Phase 10 smoke | PASS |
+| Forced live Ollama Cloud fallback | PASS; local attempted, cloud used, 11 answer characters |
 | Browser product walkthrough | PASS; no final console errors |
 | Stored benchmark | 20 scenarios, 32 actions |
 
@@ -40,9 +41,10 @@ Branch: `phase/10-release`
 .venv/bin/python -m pytest -q <focused Phase 9/10 tests>     exit 0
 .venv/bin/python -m ruff check <changed Python files>        exit 0
 make phase10-smoke                                           exit 0 / PASS
-make verify BUN=/Users/rajeet/.bun/bin/bun                   392 + 28 passed
+make verify BUN=/Users/rajeet/.bun/bin/bun                   415 + 30 passed
 make dev                                                     CONFIGURED
 make phase10-live-smoke                                      exit 0 / PASS
+make phase10-cloud-fallback-smoke                            exit 0 / PASS
 .venv/bin/python -m intentfence_analytics.cli \
   benchmarks/scenarios intentfence.db \
   --run-id phase10-judge-evidence                            exit 0

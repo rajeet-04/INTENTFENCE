@@ -17,7 +17,7 @@ Open `http://localhost:3000`. Keep `http://localhost:8000/docs` available in a s
 
 “Agents read untrusted content and then act with user credentials. A webpage can influence the model, but it must not become authority. IntentFence puts a typed, fail-closed gateway between model reasoning and every protected tool. The model proposes; IntentFence decides; only an allowed handler executes.”
 
-Point to **Local intelligence · authoritative execution** and the server-owned contract card.
+Point to **Adaptive intelligence · authoritative execution**, the Auto/Local/Cloud selector, and the server-owned contract card. Say: “The model provider can change; the contract and authorization boundary do not.”
 
 ### 0:40–2:10 — real search and protected fetch
 
@@ -30,6 +30,7 @@ Use web_search for current AI agent security news, then web_fetch one result, an
 While it runs, explain:
 
 - `qwen3:14b` is local on the M4.
+- Auto uses local first and visibly falls back to Ollama Cloud if local inference fails; Local and Cloud can also be selected explicitly.
 - Search and fetch target the real hosted tools. If hosted fetch is available, it shows **ALLOW**; if the provider returns an error, it shows a fail-closed `TOOL_PROVIDER_ERROR` receipt and answers from cited search evidence.
 - Each proposal is separately authorized before the provider call.
 - Sources are untrusted data and cannot modify the Intent Contract.
@@ -75,3 +76,5 @@ Do not switch to a fake answer. Show the already-completed screenshot at `docs/a
 **Are real secrets used?** No. The demo uses synthetic references. `.env`, database files, payloads, provider outputs, and chain-of-thought are excluded from committed evidence.
 
 **Why local Qwen?** It keeps reasoning local on an M4 24 GB machine. Hosted retrieval is limited to public web search/fetch; authority remains in the local IntentFence runtime.
+
+**Does cloud fallback bypass IntentFence?** No. Cloud receives the same tool schemas, and every proposed action returns through the same contract, policy, receipt, and handler gate. Partial local text is reset on fallback; completed tool effects are not replayed.

@@ -17,6 +17,8 @@
 - [x] Qwen hidden thinking is disabled for judge latency.
 - [x] Stop, retry, stable safe errors, and bounded loops are implemented.
 - [x] Deterministic and live smoke gates are separate.
+- [x] Auto/Local/Cloud routing is visible and preserves the gateway boundary.
+- [x] Forced live local-to-cloud fallback gate passes without exposing credentials.
 
 ## Evidence
 
@@ -25,7 +27,7 @@
 - [x] Four secret-safe screenshots captured and inspected.
 - [x] 20-scenario benchmark persisted for the rendered Evidence view.
 - [x] README, architecture, judge script, and walkthrough cover Phases 1–10.
-- [x] Fresh full-suite counts recorded: 392 backend and 28 dashboard tests.
+- [x] Fresh full-suite counts recorded: 415 backend and 30 dashboard tests.
 - [x] Verified implementation commit/tree IDs recorded in `VERIFICATION.md`.
 - [ ] CI checks green on the release branch and merge candidate.
 - [ ] PR merged to `main` with exact tree proof.

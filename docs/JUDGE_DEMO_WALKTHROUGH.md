@@ -8,7 +8,7 @@ This document explains the Phase 10 product demo and maps each visible result to
 
 ## Demo A — real local-model research
 
-1. Open `http://localhost:3000` and confirm **Agent runtime — CONFIGURED** and `qwen3:14b · local`. `make phase10-live-smoke` is the proof that the configured web credential works.
+1. Open `http://localhost:3000` and confirm **Agent runtime — CONFIGURED**, `qwen3:14b · local`, and the cloud fallback configuration chip. `make phase10-live-smoke` proves live web access; `make phase10-cloud-fallback-smoke` proves forced local-to-cloud failover.
 2. Submit: `Use web_search for current AI agent security news, then web_fetch one result, and answer with cited facts.`
 3. Qwen proposes `web_search`; it does not call the provider itself.
 4. The orchestrator normalizes the proposal and sends it through `IntentFenceGateway.intercept_authoritative(...)`.
@@ -56,6 +56,8 @@ The Evidence view reads persisted benchmark events rather than placeholder value
 - Corpus: 20 scenarios and 32 scored actions
 
 The deterministic benchmark is CI-safe. A separate `make phase10-live-smoke` verifies the real local-model and hosted-web path without pretending stochastic model output is deterministic evidence.
+
+The Agent composer exposes **Auto**, **Local**, and **Cloud**. Auto is local-first and may fall back or perform one bounded high-complexity escalation. Provider badges explain the active route. On a mid-stream route change, only partial assistant text is reset; sources, authorization receipts, completed tool calls, and the server-owned contract remain intact. This is the judge takeaway: **the model provider changed; the contract and authorization boundary did not.**
 
 ## Phase mapping
 
