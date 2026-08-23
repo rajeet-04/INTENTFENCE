@@ -35,4 +35,6 @@ The smoke output is limited to model/version/status/counts/decisions. It never p
 
 ## Current execution record
 
-Ollama `0.32.15` is installed natively and reachable on `127.0.0.1:11434`. The pre-existing `qwen2.5:7b` remains available as a fallback, and the approved `qwen3:14b` pull was started on 2026-08-23. Full live-web acceptance remains pending until `INTENTFENCE_OLLAMA_API_KEY` is supplied locally and the gate prints `"status": "PASS"`.
+Ollama `0.32.15` is installed natively and reachable on `127.0.0.1:11434`. The approved `qwen3:14b` model (14.8B, Q4_K_M, tool-capable) is installed, and it emitted the requested controlled `write_file` proposal using the Phase 9 client payload. The pre-existing `qwen2.5:7b` remains available as a fallback.
+
+Running `make phase9-mac-smoke` with the checked-in-safe local configuration stopped before hosted access with `set INTENTFENCE_LIVE_WEB_ENABLED=true`, as designed. Full live-web acceptance remains pending until `INTENTFENCE_OLLAMA_API_KEY` is supplied locally and the gate prints `"status": "PASS"`.
