@@ -93,6 +93,18 @@ def test_http_request_performs_controlled_http_exchange_without_echoing_payload(
     assert FAKE_SECRET not in json.dumps(result)
 
 
+def test_default_runtime_keeps_reserved_example_http_inside_synthetic_sandbox():
+    runtime = SandboxProtectedToolRuntime()
+
+    result = runtime.handler("http_request")(
+        {"url": "https://api.internal-tools.example/v1/status"}
+    )
+
+    assert result["status"] == "requested"
+    assert result["status_code"] == 200
+    assert len(runtime.environment.attacker_records()) == 1
+
+
 def test_browse_web_reads_controlled_fixture_and_marks_it_untrusted(tmp_path):
     env = _environment(tmp_path)
     runtime = SandboxProtectedToolRuntime(environment=env)

@@ -39,6 +39,10 @@ class SandboxProtectedToolRuntime:
         self.environment = environment
         self.web_provider = web_provider
         self.allowed_http_hosts = {host.lower().strip(".") for host in allowed_http_hosts}
+        if http_transport is None and not self._strict_fixtures:
+            http_transport = httpx.MockTransport(
+                lambda request: httpx.Response(200, request=request)
+            )
         self._http_client = httpx.Client(transport=http_transport, timeout=10.0)
 
     def handler(self, tool: str) -> ToolHandler:
@@ -207,6 +211,7 @@ class SandboxProtectedToolRuntime:
             or host == "::1"
             or host.startswith("127.")
             or host in self.allowed_http_hosts
+            or (not self._strict_fixtures and host.endswith(".example"))
         )
 
     def close(self) -> None:
